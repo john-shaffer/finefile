@@ -18,6 +18,9 @@ format:
 run:
     clojure -M -m finefile.cli finefile.toml
 
-update-deps:
+update-deps: && update-deps-lock
     nix flake update
     clj -M:antq --upgrade --force
+
+update-deps-lock:
+    deps-lock deps.edn
