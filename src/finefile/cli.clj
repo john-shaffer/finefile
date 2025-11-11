@@ -11,20 +11,21 @@
 (def ^:const BIN-NAME "finefile")
 (def ^:const BIN-VERSION "0.1.0")
 
+(def global-options
+  [["-h" "--help"]])
+
 (def cli-spec
   {nil
    {:description
     "A CLI for performing hyperfine benchmarks via TOML configuration."
     :options
-    [["-h" "--help"]
-     [nil "--version"]]}
+    [[nil "--version"]]}
    "bench"
    {:description
     "Run the benchmark commands specified in the config file."
     :options
     [["-f" "--file FILE" "Configuration file"
       :default "finefile.toml"]
-     ["-h" "--help"]
      ["-t" "--include-tag TAG"
       "Include only commands with at least one included tag. May be specified multiple times."
       :multi true
@@ -80,7 +81,9 @@
         valid-action? (contains? cli-spec action)
         parsed-opts (when valid-action?
                       (parse-opts action-args
-                        (:options (cli-spec action))))
+                        (concat
+                          (:options (cli-spec action))
+                          global-options)))
         {:keys [options errors]} parsed-opts]
     (cond
       (not valid-action?)
