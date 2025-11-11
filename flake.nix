@@ -41,22 +41,41 @@
             }
           ];
         };
+        runtimePaths = [
+          hyperfine-flake.packages.${system}.default
+          hyperfine-flake.packages.${system}.scripts
+        ];
+        finefileWrapped =
+          runCommand finefileBin.name
+            {
+              inherit (finefileBin) pname version meta;
+
+              nativeBuildInputs = [ makeWrapper ];
+            }
+            ''
+              mkdir -p $out/bin
+              makeWrapper ${finefileBin}/bin/finefile $out/bin/finefile \
+                --prefix PATH : ${lib.makeBinPath runtimePaths}
+            '';
       in
       {
         devShells.default = pkgs.mkShell {
-          buildInputs = with pkgs; [
-            clojure
-            deps-lock
-            hyperfine-flake.packages.${system}.default
-            hyperfine-flake.packages.${system}.scripts
-            just
-            nixfmt-rfc-style
-            taplo
-          ];
+          buildInputs =
+            with pkgs;
+            [
+              clojure
+              deps-lock
+              fd
+              just
+              nixfmt-rfc-style
+              taplo
+            ]
+            ++ runtimePaths;
         };
         packages = {
-          default = finefileBin;
-          finefile = finefileBin;
+          default = finefileWrapped;
+          finefile = finefileWrapped;
+          finefile-unwrapped = finefileBin;
         };
       }
     );
