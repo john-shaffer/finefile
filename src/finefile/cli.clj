@@ -12,7 +12,8 @@
 (def ^:const BIN-VERSION "0.1.0")
 
 (def global-options
-  [["-h" "--help"]])
+  [[nil "--debug"]
+   ["-h" "--help"]])
 
 (def cli-spec
   {nil
@@ -85,6 +86,9 @@
                           (:options (cli-spec action))
                           global-options)))
         {:keys [options errors]} parsed-opts]
+    (when (:debug options)
+      (print "parsed-opts: ")
+      (prn parsed-opts))
     (cond
       (not valid-action?)
       {:exit-message (str "Unknown command: " action)
