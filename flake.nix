@@ -68,6 +68,7 @@
               fd
               just
               nixfmt-rfc-style
+              omnix
               taplo
             ]
             ++ runtimePaths;
