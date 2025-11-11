@@ -4,15 +4,19 @@ shell = "bash"
 
 [commands.just-fmt]
 command = "just --fmt --unstable"
+tags = ["format"]
 
 [commands.nixfmt]
 command = """fd --glob "*.nix" -x nixfmt"""
+tags = ["fd", "format"]
 
 [commands.standard-clj-fmt]
 command = "standard-clj fix"
+tags = ["format"]
 
 [commands.taplo-fmt]
 command = """fd --glob "*.toml" -x taplo fmt"""
+tags = ["fd", "format"]
 
 [plots.histogram]
 file = "plot-histogram.png"

@@ -24,7 +24,11 @@
     :options
     [["-f" "--file FILE" "Configuration file"
       :default "finefile.toml"]
-     ["-h" "--help"]]}})
+     ["-h" "--help"]
+     ["-t" "--include-tag TAG"
+      "Include only commands with at least one included tag. May be specified multiple times."
+      :multi true
+      :update-fn (fnil conj #{})]]}})
 
 (defn command-usage [action parsed-opts]
   (let [{:keys [description]} (cli-spec action)
@@ -106,13 +110,15 @@
   (println msg)
   (System/exit status))
 
-(defn bench [{{:keys [file]} :options}]
-  (let [m (with-open [rdr (io/reader file)]
-            (toml/read rdr))]
+(defn bench [{:keys [options]}]
+  (let [{:keys [file]} options
+        m (with-open [rdr (io/reader file)]
+            (toml/read rdr))
+        opts {:include-tags (:include-tag options)}]
     (apply p/exec
       {:err :inherit :out :inherit}
       "hyperfine"
-      (core/finefile-map->hyperfine-args m))
+      (core/finefile-map->hyperfine-args m opts))
     (doseq [[_k plot] (get m "plots")]
       (apply p/exec
         {:err :discard :out :inherit}

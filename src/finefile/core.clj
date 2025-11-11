@@ -8,17 +8,25 @@
       (when command [command])
       (when conclude ["--conclude" conclude]))))
 
-(defn finefile-map->hyperfine-args [finefile-map]
-  (let [{:strs [commands defaults]} finefile-map
-        {:strs [cleanup export-json shell]} defaults]
+(defn finefile-map->hyperfine-args [finefile-map opts]
+  (let [{:keys [include-tags]} opts
+        {:strs [commands defaults]} finefile-map
+        {:strs [cleanup export-json shell]} defaults
+        filters (when include-tags
+                  [(filter
+                     (fn [[_ command]]
+                       (some include-tags (get command "tags"))))])]
     (concat
       (when export-json ["--export-json" export-json])
       (when shell ["--shell" shell])
       (when cleanup ["--cleanup" cleanup])
-      (mapcat
-        (fn [[k command]]
-          (command->hyperfine-args k (merge defaults command)))
-        commands))))
+      (as-> filters $
+        (concat $
+          [(mapcat
+             (fn [[k command]]
+               (command->hyperfine-args k (merge defaults command))))])
+        (apply comp $)
+        (transduce $ conj [] commands)))))
 
 (def ^:private plot-types->script-bin-names
   {"histogram" "hyperfine-plot-histogram"
