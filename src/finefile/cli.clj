@@ -37,7 +37,16 @@
           [description
            nil])
         ["Options:"
-         summary]))))
+         summary]
+        (when (nil? action)
+          (concat
+            [nil
+             "Commands:"]
+            (for [[k {:keys [description]}] cli-spec
+                  :when k]
+              (str "  " k
+                (subs "                  " 0 (- 12 (count k)))
+                description))))))))
 
 (defn reorder-help-args
   "Moves one or more help args after the action, if there is one.
