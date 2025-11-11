@@ -20,7 +20,27 @@
       with import nixpkgs {
         inherit system;
         overlays = [ clj-nix.overlays.default ];
-      }; {
+      };
+      let
+        finefileSrc = lib.sources.sourceFilesBySuffices self [
+          ".clj"
+          ".edn"
+          ".json"
+        ];
+        finefileBin = clj-nix.lib.mkCljApp {
+          pkgs = nixpkgs.legacyPackages.${system};
+          modules = [
+            {
+              main-ns = "finefile.cli";
+              name = "finefile";
+              nativeImage.enable = true;
+              projectSrc = finefileSrc;
+              version = "0.1.0";
+            }
+          ];
+        };
+      in
+      {
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
             clojure
@@ -31,6 +51,10 @@
             nixfmt-rfc-style
             taplo
           ];
+        };
+        packages = {
+          default = finefileBin;
+          finefile = finefileBin;
         };
       }
     );
