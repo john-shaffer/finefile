@@ -1,0 +1,10 @@
+{:paths ["src"]
+ :deps
+ {org.clojure/clojure {:mvn/version "1.12.3"}
+  io.github.tonsky/toml-clj {:mvn/version "0.1.0"}}
+ :aliases
+ {:antq
+  {:deps
+   {com.github.liquidz/antq {:mvn/version "2.11.1276"}
+    org.slf4j/slf4j-nop {:mvn/version "2.0.17"}}
+   :main-opts ["-m" "antq.core"]}}}

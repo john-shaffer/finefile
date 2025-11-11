@@ -1,0 +1,6 @@
+.*
+!.cljfmt.edn
+!.editorconfig
+!.envrc
+!.gitignore
+!.standard-clj.edn

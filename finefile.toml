@@ -1,0 +1,14 @@
+[defaults]
+shell = "bash"
+
+[benchmarks.just-fmt]
+command = "just --fmt --unstable"
+
+[benchmarks.nixfmt]
+command = """fd --glob "*.nix" -x nixfmt"""
+
+[benchmarks.standard-clj-fmt]
+command = "standard-clj fix"
+
+[benchmarks.taplo-fmt]
+command = """fd --glob "*.toml" -x taplo fmt"""

@@ -1,0 +1,1 @@
+{:include ["*.edn" "src/**/*.clj"]}
