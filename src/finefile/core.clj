@@ -1,7 +1,7 @@
 (ns finefile.core)
 
-(defn benchmark->hyperfine-args [k benchmark]
-  (let [{:strs [cleanup conclude command prepare]} benchmark]
+(defn command->hyperfine-args [k command]
+  (let [{:strs [cleanup conclude command prepare]} command]
     (concat
       ["--command-name" k]
       (when prepare ["--prepare" prepare])
@@ -10,11 +10,11 @@
       (when cleanup ["--cleanup" cleanup]))))
 
 (defn finefile-map->hyperfine-args [finefile-map]
-  (let [{:strs [benchmarks defaults]} finefile-map
+  (let [{:strs [commands defaults]} finefile-map
         {:strs [shell]} defaults]
     (concat
       (when shell ["--shell" shell])
       (mapcat
-        (fn [[k benchmark]]
-          (benchmark->hyperfine-args k (merge defaults benchmark)))
-        benchmarks))))
+        (fn [[k command]]
+          (command->hyperfine-args k (merge defaults command)))
+        commands))))
