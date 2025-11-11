@@ -15,8 +15,8 @@ format:
     standard-clj fix
     fd --glob "*.toml" -x taplo format
 
-run:
-    clojure -M -m finefile.cli finefile.toml
+run *args:
+    clojure -M -m finefile.cli {{ args }}
 
 update-deps: && update-deps-lock
     nix flake update
