@@ -4,3 +4,5 @@
 !.envrc
 !.gitignore
 !.standard-clj.edn
+
+bench*.json

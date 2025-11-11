@@ -11,8 +11,9 @@
 
 (defn finefile-map->hyperfine-args [finefile-map]
   (let [{:strs [commands defaults]} finefile-map
-        {:strs [shell]} defaults]
+        {:strs [export-json shell]} defaults]
     (concat
+      (when export-json ["--export-json" export-json])
       (when shell ["--shell" shell])
       (mapcat
         (fn [[k command]]
