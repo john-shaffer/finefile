@@ -121,14 +121,20 @@
   (let [{:keys [file]} options
         m (with-open [rdr (io/reader file)]
             (toml/read rdr))
-        opts {:include-tags (:include-tag options)}]
+        opts {:include-tags (:include-tag options)}
+        env (some->> (get-in m ["defaults" "env"])
+              (map (fn [[k v]] [k (str v)])))]
     (apply p/exec
-      {:err :inherit :out :inherit}
+      {:env env
+       :err :inherit
+       :out :inherit}
       "hyperfine"
       (core/finefile-map->hyperfine-args m opts))
     (doseq [[_k plot] (get m "plots")]
       (apply p/exec
-        {:err :discard :out :inherit}
+        {:env env
+         :err :discard
+         :out :inherit}
         (core/plot->args plot (get-in m ["defaults" "export-json"]))))))
 
 (defn -main [& args]
