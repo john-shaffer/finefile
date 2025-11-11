@@ -19,3 +19,13 @@
         (fn [[k command]]
           (command->hyperfine-args k (merge defaults command)))
         commands))))
+
+(def ^:private plot-types->script-bin-names
+  {"histogram" "hyperfine-plot-histogram"
+   "whisker" "hyperfine-plot-whisker"})
+
+(defn plot->args [m input-file]
+  (let [{:strs [file type]} m]
+    [(plot-types->script-bin-names type)
+     input-file
+     "--output" file]))

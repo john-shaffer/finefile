@@ -6,3 +6,4 @@
 !.standard-clj.edn
 
 bench*.json
+plot*.png

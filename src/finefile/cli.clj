@@ -13,4 +13,8 @@
       (apply p/exec
         {:err :inherit :out :inherit}
         "hyperfine"
-        (core/finefile-map->hyperfine-args m)))))
+        (core/finefile-map->hyperfine-args m))
+      (doseq [[_k plot] (get m "plots")]
+        (apply p/exec
+          {:err :discard :out :inherit}
+          (core/plot->args plot (get-in m ["defaults" "export-json"])))))))

@@ -13,3 +13,11 @@ command = "standard-clj fix"
 
 [commands.taplo-fmt]
 command = """fd --glob "*.toml" -x taplo fmt"""
+
+[plots.histogram]
+file = "plot-histogram.png"
+type = "histogram"
+
+[plots.whisker]
+file = "plot-whisker.png"
+type = "whisker"
