@@ -30,7 +30,12 @@
      ["-t" "--include-tag TAG"
       "Include only commands with at least one included tag. May be specified multiple times."
       :multi true
-      :update-fn (fnil conj #{})]]}})
+      :update-fn (fnil conj #{})]]}
+   "check"
+   {:description "Check syntax of a config file."
+    :options
+    [["-f" "--file FILE" "Configuration file"
+      :default "finefile.toml"]]}})
 
 (defn command-usage [action parsed-opts]
   (let [{:keys [description]} (cli-spec action)
@@ -137,10 +142,20 @@
          :out :inherit}
         (core/plot->args plot (get-in m ["defaults" "export-json"]))))))
 
+(defn check [{:keys [options]}]
+  (let [{:keys [file]} options
+        p (p/start
+            {:err :inherit :out :inherit}
+            "taplo" "lint" "--no-auto-config" file)
+        exit @(p/exit-ref p)]
+    (when-not (zero? exit)
+      (System/exit exit))))
+
 (defn -main [& args]
   (let [parsed-opts (validate-args args)
         {:keys [action exit-message ok?]} parsed-opts]
     (if exit-message
       (exit (if ok? 0 1) exit-message)
       (case action
-        "bench" (bench parsed-opts)))))
+        "bench" (bench parsed-opts)
+        "check" (check parsed-opts)))))

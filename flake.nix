@@ -44,6 +44,7 @@
         runtimePaths = [
           hyperfine-flake.packages.${system}.default
           hyperfine-flake.packages.${system}.scripts
+          pkgs.taplo
         ];
         finefileWrapped =
           runCommand finefileBin.name
@@ -69,7 +70,6 @@
               just
               nixfmt-rfc-style
               omnix
-              taplo
             ]
             ++ runtimePaths;
         };
