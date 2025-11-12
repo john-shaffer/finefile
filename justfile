@@ -10,6 +10,7 @@ list:
 
 # Format source and then check for unfixable issues
 format:
+    fd -e json -x jsonfmt -w
     just --fmt --unstable
     fd -e nix -x nixfmt
     standard-clj fix

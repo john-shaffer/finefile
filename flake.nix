@@ -67,6 +67,7 @@
               clojure
               deps-lock
               fd
+              jsonfmt
               just
               nixfmt-rfc-style
               omnix
