@@ -1,6 +1,5 @@
 (ns finefile.cli
   (:require
-   [clojure.java.io :as io]
    [clojure.java.process :as p]
    [clojure.string :as str]
    [clojure.tools.cli :refer [parse-opts]]
@@ -127,6 +126,11 @@
   (println msg)
   (System/exit status))
 
+(defn get-schema-file []
+  (let [schema-file (System/getenv "FINEFILE_SCHEMA")]
+    (when (seq schema-file)
+      (str "file://" schema-file))))
+
 (defn bench [{:keys [options]}]
   (let [{:keys [file]} options
         m (with-open [rdr (io/reader file)]
@@ -148,10 +152,17 @@
         (core/plot->args plot (get-in m ["defaults" "export-json"]))))))
 
 (defn check [{:keys [options]}]
-  (let [{:keys [file]} options
-        p (p/start
+  (let [{:keys [debug file]} options
+        schema-file (get-schema-file)
+        _ (when debug
+            (println "schema-file: " schema-file))
+        args (concat
+               ["taplo" "lint" "--no-auto-config" file]
+               (when schema-file
+                 ["--schema" schema-file]))
+        p (apply p/start
             {:err :inherit :out :inherit}
-            "taplo" "lint" "--no-auto-config" file)
+            args)
         exit @(p/exit-ref p)]
     (when-not (zero? exit)
       (System/exit exit))))
