@@ -1,5 +1,6 @@
 (ns finefile.cli
   (:require
+   [clojure.java.io :as io]
    [clojure.java.process :as p]
    [clojure.string :as str]
    [clojure.tools.cli :refer [parse-opts]]
@@ -131,10 +132,39 @@
     (when (seq schema-file)
       (str "file://" schema-file))))
 
+(defn check-config-str [config-str {:keys [debug]}]
+  (let [schema-file (get-schema-file)
+        _ (when debug
+            (println "schema-file: " schema-file))
+        args (concat
+               ["taplo" "lint" "--no-auto-config" "-"]
+               (when (seq schema-file)
+                 ["--schema" schema-file]))
+        p (apply p/start
+            {:err :discard
+             :in :pipe
+             :out :discard}
+            args)
+        _ (with-open [stdin (p/stdin p)]
+            (io/copy config-str stdin))
+        exit @(p/exit-ref p)]
+    ; If validation fails, we re-run it so that we can
+    ; get taplo's output.
+    (when-not (zero? exit)
+      (let [p (apply p/start
+                {:err :inherit
+                 :in :pipe
+                 :out :inherit}
+                args)]
+        (with-open [stdin (p/stdin p)]
+          (io/copy config-str stdin)))
+      (System/exit @(p/exit-ref p)))))
+
 (defn bench [{:keys [options]}]
   (let [{:keys [file]} options
-        m (with-open [rdr (io/reader file)]
-            (toml/read rdr))
+        config-str (slurp file)
+        _ (check-config-str config-str options)
+        m (toml/read-string config-str)
         opts {:include-tags (:include-tag options)}
         env (some->> (get-in m ["defaults" "env"])
               (map (fn [[k v]] [k (str v)])))]
