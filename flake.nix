@@ -41,22 +41,33 @@
             }
           ];
         };
+        finefileUnwrapped = stdenv.mkDerivation {
+          inherit (finefileBin) meta name version;
+          phases = [ "installPhase" ];
+          installPhase = ''
+            mkdir -p $out/bin
+            mkdir -p $out/share/finefile
+            cp ${finefileBin}/bin/finefile $out/bin/finefile
+            cp ${finefileSrc}/schema/finefile.toml.latest.schema.json $out/share/finefile
+          '';
+        };
         runtimePaths = [
           hyperfine-flake.packages.${system}.default
           hyperfine-flake.packages.${system}.scripts
           pkgs.taplo
         ];
         finefileWrapped =
-          runCommand finefileBin.name
+          runCommand finefileUnwrapped.name
             {
-              inherit (finefileBin) pname version meta;
+              inherit (finefileUnwrapped) meta name version;
 
               nativeBuildInputs = [ makeWrapper ];
             }
             ''
               mkdir -p $out/bin
-              makeWrapper ${finefileBin}/bin/finefile $out/bin/finefile \
-                --prefix PATH : ${lib.makeBinPath runtimePaths}
+              makeWrapper ${finefileUnwrapped}/bin/finefile $out/bin/finefile \
+                --prefix PATH : ${lib.makeBinPath runtimePaths} \
+                --set-default FINEFILE_SCHEMA ${finefileUnwrapped}/share/finefile/finefile.toml.latest.schema.json
             '';
       in
       {
