@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft-04/schema",
+  "title": "finefile.toml",
+  "description": "Definition of benchmark commands and outputs",
+  "type": "object",
+  "properties": {
+    "commands": {
+      "type": "object",
+      "description": "Defined commands to benchmark.",
+      "additionalProperties": {
+        "type": "object",
+        "description": "A command to benchmark.",
+        "properties": {
+          "command": {
+            "type": "string",
+            "description": "A command to benchmark."
+          },
+          "tags": {
+            "type": "array",
+            "description": "Tags can be used to include or exclude commands.",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "command"
+        ]
+      }
+    },
+    "defaults": {
+      "type": "object",
+      "description": "Default values used when running benchmarks.",
+      "properties": {
+        "env": {
+          "type": "object",
+          "description": "Environment variables used when executing commands.",
+          "additionalProperties": {
+            "type": "string",
+            "descripton": "The value of an environment variable used when executing commands."
+          }
+        },
+        "export-json": {
+          "type": "string",
+          "description": "A file path to write benchmark results to."
+        },
+        "shell": {
+          "type": "string",
+          "description": "The shell to use for executing commands."
+        }
+      }
+    },
+    "plots": {
+      "type": "object",
+      "description": "Plots to create from benchmark results.",
+      "additionalProperties": {
+        "type": "object",
+        "description": "A plot to create from benchmark results.",
+        "properties": {
+          "file": {
+            "type": "string",
+            "description": "A file path to write the plot image to."
+          },
+          "type": {
+            "description": "The type of plot to create.",
+            "enum": [
+              "histogram",
+              "whisker"
+            ]
+          }
+        },
+        "required": [
+          "file",
+          "type"
+        ]
+      }
+    }
+  }
+}
