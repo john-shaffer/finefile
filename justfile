@@ -11,9 +11,9 @@ list:
 # Format source and then check for unfixable issues
 format:
     just --fmt --unstable
-    fd --glob "*.nix" -x nixfmt
+    fd -e nix -x nixfmt
     standard-clj fix
-    fd --glob "*.toml" -x taplo format
+    fd -e toml -x taplo format
 
 run *args:
     clojure -M -m finefile.cli {{ args }}
