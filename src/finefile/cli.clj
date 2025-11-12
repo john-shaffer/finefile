@@ -35,6 +35,11 @@
    {:description "Check syntax of a config file."
     :options
     [["-f" "--file FILE" "Configuration file"
+      :default "finefile.toml"]]}
+   "format"
+   {:description "Format a config file."
+    :options
+    [["-f" "--file FILE" "Configuration file"
       :default "finefile.toml"]]}})
 
 (defn command-usage [action parsed-opts]
@@ -151,6 +156,15 @@
     (when-not (zero? exit)
       (System/exit exit))))
 
+(defn fmt [{:keys [options]}]
+  (let [{:keys [file]} options
+        p (p/start
+            {:err :inherit :out :inherit}
+            "taplo" "format" "--no-auto-config" file)
+        exit @(p/exit-ref p)]
+    (when-not (zero? exit)
+      (System/exit exit))))
+
 (defn -main [& args]
   (let [parsed-opts (validate-args args)
         {:keys [action exit-message ok?]} parsed-opts]
@@ -158,4 +172,5 @@
       (exit (if ok? 0 1) exit-message)
       (case action
         "bench" (bench parsed-opts)
-        "check" (check parsed-opts)))))
+        "check" (check parsed-opts)
+        "format" (fmt parsed-opts)))))
