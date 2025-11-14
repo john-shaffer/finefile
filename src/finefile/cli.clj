@@ -175,11 +175,13 @@
           _ (check-config-str config-str options)
           m (toml/read-string config-str)
           opts {:include-tags (:include-tag options)}
+          command-defaults (get-in m ["defaults" "commands"])
           cmds (map
                  (fn [[k command]]
-                   {:arg-seq (core/command->hyperfine-args m k (dissoc command "setup"))
-                    :command command
-                    :export-file (fs/path dir (str (random-uuid) ".json"))})
+                   (let [command (merge command-defaults command)]
+                     {:arg-seq (core/command->hyperfine-args m k (dissoc command "setup"))
+                      :command command
+                      :export-file (fs/path dir (str (random-uuid) ".json"))}))
                  (core/select-commands m opts))
           plots (get m "plots")]
       (doseq [{:keys [arg-seq command export-file]} cmds

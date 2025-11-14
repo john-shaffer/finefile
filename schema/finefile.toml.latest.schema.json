@@ -3,61 +3,72 @@
   "title": "finefile.toml",
   "description": "Definition of benchmark commands and outputs",
   "type": "object",
+  "definitions": {
+    "command": {
+      "type": "object",
+      "description": "A command to benchmark.",
+      "properties": {
+        "cleanup": {
+          "type": "string",
+          "description": "A command to run after each set of timing runs. Executes once per benchmarked command."
+        },
+        "command": {
+          "type": "string",
+          "description": "A command to benchmark."
+        },
+        "conclude": {
+          "type": "string",
+          "description": "A command to run after each timing run."
+        },
+        "env": {
+          "type": "object",
+          "description": "Environment variables used when executing commands.",
+          "additionalProperties": {
+            "type": "string",
+            "description": "The value of an environment variable used when executing commands."
+          }
+        },
+        "export-json": {
+          "type": "string",
+          "description": "A file path to write benchmark results to."
+        },
+        "prepare": {
+          "type": "string",
+          "description": "A command to run before each timing run."
+        },
+        "setup": {
+          "type": "string",
+          "description": "A command to run before each set of timing runs. Executes once per benchmarked command."
+        },
+        "shell": {
+          "type": "string",
+          "description": "The shell to use for executing commands."
+        },
+        "tags": {
+          "type": "array",
+          "description": "Tags can be used to include or exclude commands.",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
   "properties": {
     "commands": {
       "type": "object",
       "description": "Defined commands to benchmark.",
       "additionalProperties": {
+        "$ref": "#/definitions/command"
+      }
+    },
+    "defaults": {
+      "commands": {
         "type": "object",
-        "description": "A command to benchmark.",
-        "properties": {
-          "cleanup": {
-            "type": "string",
-            "description": "A command to run after each set of timing runs. Executes once per benchmarked command."
-          },
-          "command": {
-            "type": "string",
-            "description": "A command to benchmark."
-          },
-          "conclude": {
-            "type": "string",
-            "description": "A command to run after each timing run."
-          },
-          "env": {
-            "type": "object",
-            "description": "Environment variables used when executing commands.",
-            "additionalProperties": {
-              "type": "string",
-              "description": "The value of an environment variable used when executing commands."
-            }
-          },
-          "export-json": {
-            "type": "string",
-            "description": "A file path to write benchmark results to."
-          },
-          "prepare": {
-            "type": "string",
-            "description": "A command to run before each timing run."
-          },
-          "setup": {
-            "type": "string",
-            "description": "A command to run before each set of timing runs. Executes once per benchmarked command."
-          },
-          "shell": {
-            "type": "string",
-            "description": "The shell to use for executing commands."
-          },
-          "tags": {
-            "type": "array",
-            "description": "Tags can be used to include or exclude commands.",
-            "items": {
-              "type": "string"
-            }
-          }
-        },
-        "required": [
-          "command"
-        ]
+        "description": "Default values used when a value is not set for commands.<name>",
+        "additionalProperties": {
+          "$ref": "#/definitions/command"
+        }
       }
     },
     "plots": {
