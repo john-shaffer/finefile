@@ -1,0 +1,23 @@
+[defaults]
+export-json = "bench.json"
+shell = "none"
+
+[commands.clojure-help]
+command = "just run -h"
+tags = ["clojure", "help"]
+
+[commands.clojure-version]
+command = "just run --version"
+tags = ["clojure", "version"]
+
+[commands.native-help]
+command = "result/bin/finefile -h"
+tags = ["help", "native"]
+
+[commands.native-version]
+command = "result/bin/finefile --version"
+tags = ["native", "version"]
+
+[plots.whisker]
+file = "plot-whisker.png"
+type = "whisker"
