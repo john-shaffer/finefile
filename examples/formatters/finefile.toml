@@ -1,5 +1,3 @@
-#:schema ./schema/finefile.toml.latest.schema.json
-
 [defaults]
 export-json = "bench.json"
 shell = "bash"
