@@ -28,7 +28,7 @@
             "description": "Environment variables used when executing commands.",
             "additionalProperties": {
               "type": "string",
-              "descripton": "The value of an environment variable used when executing commands."
+              "description": "The value of an environment variable used when executing commands."
             }
           },
           "export-json": {
