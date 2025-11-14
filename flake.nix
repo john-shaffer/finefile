@@ -84,6 +84,11 @@
               omnix
             ]
             ++ runtimePaths;
+          shellHook = ''
+            echo
+            echo -e "Run '\033[1mjust <recipe>\033[0m' to get started"
+            just --list
+          '';
         };
         packages = {
           default = finefileWrapped;
