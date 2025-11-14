@@ -5,12 +5,13 @@
 (defn command->hyperfine-args [finefile-map k command]
   (let [{:strs [defaults]} finefile-map
         {:strs [cleanup shell]} defaults
-        {:strs [conclude command prepare setup]} command]
+        {:strs [conclude command prepare setup warmup-runs]} command]
     (concat
       (when shell ["--shell" shell])
       ["--command-name" k]
       (when setup ["--setup" setup])
       (when prepare ["--prepare" prepare])
+      (when warmup-runs ["--warmup" (str warmup-runs)])
       (when command [command])
       (when conclude ["--conclude" conclude])
       (when cleanup ["--cleanup" cleanup]))))

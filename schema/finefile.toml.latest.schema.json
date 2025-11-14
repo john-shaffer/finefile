@@ -50,6 +50,10 @@
           "items": {
             "type": "string"
           }
+        },
+        "warmup-runs": {
+          "type": "integer",
+          "description": "The number of warmup runs to perform before timing runs."
         }
       }
     }
