@@ -9,6 +9,11 @@ list:
     @# First command in the file is invoked by default
     @just --list
 
+# Run benchmarks
+bench:
+    nix build
+    nix run . -- bench
+
 # Build the finefile package
 build:
     nix build
