@@ -1,4 +1,6 @@
-(ns finefile.core)
+(ns finefile.core
+  (:require
+   [clojure.data.json :as json]))
 
 (defn command->hyperfine-args [k command]
   (let [{:strs [conclude command prepare]} command]
@@ -37,3 +39,12 @@
     [(plot-types->script-bin-names type)
      input-file
      "--output" file]))
+
+(defn read-bench-json [reader]
+  (json/read reader
+    {:value-fn
+     (fn [k v]
+       (case k
+         "exit_codes" (int-array v)
+         "times" (double-array v)
+         v))}))

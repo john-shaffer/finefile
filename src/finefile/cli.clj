@@ -1,6 +1,7 @@
 (ns finefile.cli
   (:require
    [babashka.fs :as fs]
+   [clojure.data.json :as json]
    [clojure.java.io :as io]
    [clojure.java.process :as p]
    [clojure.string :as str]
@@ -171,16 +172,23 @@
           opts {:export-file export-file
                 :include-tags (:include-tag options)}
           env (some->> (get-in m ["defaults" "env"])
-                (map (fn [[k v]] [k (str v)])))]
+                (map (fn [[k v]] [k (str v)])))
+          plots (get m "plots")]
       (apply p/exec
         {:env env
          :err :inherit
          :out :inherit}
         "hyperfine"
         (core/finefile-map->hyperfine-args m opts))
-      (when-let [export-json (get-in m ["defaults" "export-json"])]
-        (fs/copy export-file export-json {:replace-existing true}))
-      (doseq [[_k plot] (get m "plots")]
+      (let [results (with-open [rdr (-> export-file fs/file io/reader)]
+                      (core/read-bench-json rdr))]
+        (when-let [export-json (get-in m ["defaults" "export-json"])]
+          (with-open [w (io/writer (fs/file export-json))]
+            (json/write results w {:indent true})))
+        (when (seq plots)
+          (with-open [w (io/writer (fs/file export-file))]
+            (json/write results w))))
+      (doseq [[_k plot] plots]
         (apply p/exec
           {:env env
            :err :discard
