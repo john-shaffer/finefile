@@ -39,6 +39,10 @@
             "type": "string",
             "description": "A command to run before each set of timing runs. Executes once per benchmarked command."
           },
+          "shell": {
+            "type": "string",
+            "description": "The shell to use for executing commands."
+          },
           "tags": {
             "type": "array",
             "description": "Tags can be used to include or exclude commands.",
@@ -56,21 +60,9 @@
       "type": "object",
       "description": "Default values used when running benchmarks.",
       "properties": {
-        "env": {
-          "type": "object",
-          "description": "Environment variables used when executing commands.",
-          "additionalProperties": {
-            "type": "string",
-            "descripton": "The value of an environment variable used when executing commands."
-          }
-        },
         "export-json": {
           "type": "string",
           "description": "A file path to write benchmark results to."
-        },
-        "shell": {
-          "type": "string",
-          "description": "The shell to use for executing commands."
         }
       }
     },

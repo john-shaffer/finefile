@@ -175,12 +175,12 @@
                     :command command
                     :export-file (fs/path dir (str (random-uuid) ".json"))})
                  (core/select-commands m opts))
-          env (some->> (get-in m ["defaults" "env"])
-                (map (fn [[k v]] [k (str v)])))
-          plots (get m "plots")
-          shell (get-in m ["defaults" "shell"] "bash")]
+          plots (get m "plots")]
       (doseq [{:keys [arg-seq command export-file]} cmds
-              :let [{:strs [setup]} command]]
+              :let [{:strs [setup]} command
+                    env (some->> (get command "env")
+                          (map (fn [[k v]] [k (str v)])))
+                    shell (get command "shell" "bash")]]
         (when (seq setup)
           (apply p/exec
             {:env env
@@ -215,8 +215,7 @@
             (json/write results w)))
         (doseq [[_k plot] plots]
           (apply p/exec
-            {:env env
-             :err :discard
+            {:err :discard
              :out :inherit}
             (core/plot->args plot (str plots-import))))))))
 
