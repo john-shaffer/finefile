@@ -9,15 +9,15 @@
       (when conclude ["--conclude" conclude]))))
 
 (defn finefile-map->hyperfine-args [finefile-map opts]
-  (let [{:keys [include-tags]} opts
+  (let [{:keys [export-file include-tags]} opts
         {:strs [commands defaults]} finefile-map
-        {:strs [cleanup export-json shell]} defaults
+        {:strs [cleanup shell]} defaults
         filters (when include-tags
                   [(filter
                      (fn [[_ command]]
                        (some include-tags (get command "tags"))))])]
     (concat
-      (when export-json ["--export-json" export-json])
+      (when export-file ["--export-json" (str export-file)])
       (when shell ["--shell" shell])
       (when cleanup ["--cleanup" cleanup])
       (as-> filters $

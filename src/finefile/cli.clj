@@ -1,5 +1,6 @@
 (ns finefile.cli
   (:require
+   [babashka.fs :as fs]
    [clojure.java.io :as io]
    [clojure.java.process :as p]
    [clojure.string :as str]
@@ -161,25 +162,30 @@
       (System/exit @(p/exit-ref p)))))
 
 (defn bench [{:keys [options]}]
-  (let [{:keys [file]} options
-        config-str (slurp file)
-        _ (check-config-str config-str options)
-        m (toml/read-string config-str)
-        opts {:include-tags (:include-tag options)}
-        env (some->> (get-in m ["defaults" "env"])
-              (map (fn [[k v]] [k (str v)])))]
-    (apply p/exec
-      {:env env
-       :err :inherit
-       :out :inherit}
-      "hyperfine"
-      (core/finefile-map->hyperfine-args m opts))
-    (doseq [[_k plot] (get m "plots")]
+  (fs/with-temp-dir [dir {:prefix "finefile"}]
+    (let [{:keys [file]} options
+          config-str (slurp file)
+          _ (check-config-str config-str options)
+          m (toml/read-string config-str)
+          export-file (fs/path dir (str (random-uuid) ".json"))
+          opts {:export-file export-file
+                :include-tags (:include-tag options)}
+          env (some->> (get-in m ["defaults" "env"])
+                (map (fn [[k v]] [k (str v)])))]
       (apply p/exec
         {:env env
-         :err :discard
+         :err :inherit
          :out :inherit}
-        (core/plot->args plot (get-in m ["defaults" "export-json"]))))))
+        "hyperfine"
+        (core/finefile-map->hyperfine-args m opts))
+      (when-let [export-json (get-in m ["defaults" "export-json"])]
+        (fs/copy export-file export-json {:replace-existing true}))
+      (doseq [[_k plot] (get m "plots")]
+        (apply p/exec
+          {:env env
+           :err :discard
+           :out :inherit}
+          (core/plot->args plot (str export-file)))))))
 
 (defn check [{:keys [options]}]
   (let [{:keys [debug file]} options
