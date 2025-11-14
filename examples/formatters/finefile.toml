@@ -1,5 +1,4 @@
 [defaults]
-export-json = "bench.json"
 shell = "bash"
 
 [commands.just-fmt]
