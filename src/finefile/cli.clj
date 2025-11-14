@@ -168,32 +168,46 @@
           config-str (slurp file)
           _ (check-config-str config-str options)
           m (toml/read-string config-str)
-          export-file (fs/path dir (str (random-uuid) ".json"))
-          opts {:export-file export-file
-                :include-tags (:include-tag options)}
+          opts {:include-tags (:include-tag options)}
+          arg-seqs (core/finefile-map->hyperfine-arg-seqs m opts)
+          cmds (map
+                 (fn [arg-seq]
+                   {:arg-seq arg-seq
+                    :export-file (fs/path dir (str (random-uuid) ".json"))})
+                 arg-seqs)
           env (some->> (get-in m ["defaults" "env"])
                 (map (fn [[k v]] [k (str v)])))
           plots (get m "plots")]
-      (apply p/exec
-        {:env env
-         :err :inherit
-         :out :inherit}
-        "hyperfine"
-        (core/finefile-map->hyperfine-args m opts))
-      (let [results (with-open [rdr (-> export-file fs/file io/reader)]
-                      (core/read-bench-json rdr))]
+      (doseq [{:keys [arg-seq export-file]} cmds]
+        (apply p/exec
+          {:env env
+           :err :inherit
+           :out :inherit}
+          "hyperfine"
+          (concat arg-seq
+            ["--export-json" (str export-file)])))
+      (let [result-maps (map
+                          (fn [{:keys [export-file]}]
+                            (with-open [rdr (-> export-file fs/file io/reader)]
+                              (core/read-bench-json rdr)))
+                          cmds)
+            results (->> result-maps
+                      (map #(get % "results"))
+                      (reduce into [])
+                      (hash-map "results"))
+            plots-import (fs/path dir (str (random-uuid) ".json"))]
         (when-let [export-json (get-in m ["defaults" "export-json"])]
           (with-open [w (io/writer (fs/file export-json))]
             (json/write results w {:indent true})))
         (when (seq plots)
-          (with-open [w (io/writer (fs/file export-file))]
-            (json/write results w))))
-      (doseq [[_k plot] plots]
-        (apply p/exec
-          {:env env
-           :err :discard
-           :out :inherit}
-          (core/plot->args plot (str export-file)))))))
+          (with-open [w (io/writer (fs/file plots-import))]
+            (json/write results w)))
+        (doseq [[_k plot] plots]
+          (apply p/exec
+            {:env env
+             :err :discard
+             :out :inherit}
+            (core/plot->args plot (str plots-import))))))))
 
 (defn check [{:keys [options]}]
   (let [{:keys [debug file]} options
