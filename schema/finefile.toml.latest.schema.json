@@ -11,9 +11,29 @@
         "type": "object",
         "description": "A command to benchmark.",
         "properties": {
+          "cleanup": {
+            "type": "string",
+            "description": "A command to run after each set of timing runs. Executes once per benchmarked command."
+          },
           "command": {
             "type": "string",
             "description": "A command to benchmark."
+          },
+          "conclude": {
+            "type": "string",
+            "description": "A command to run after each timing run."
+          },
+          "env": {
+            "type": "object",
+            "description": "Environment variables used when executing commands.",
+            "additionalProperties": {
+              "type": "string",
+              "descripton": "The value of an environment variable used when executing commands."
+            }
+          },
+          "prepare": {
+            "type": "string",
+            "description": "A command to run before each timing run."
           },
           "setup": {
             "type": "string",
