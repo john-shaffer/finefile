@@ -15,13 +15,13 @@
       (when conclude ["--conclude" conclude])
       (when cleanup ["--cleanup" cleanup]))))
 
-(defn finefile-map->hyperfine-arg-seqs [finefile-map opts]
+(defn select-commands [finefile-map opts]
   (let [{:keys [include-tags]} opts
         {:strs [commands]} finefile-map]
     (for [[k command] commands
           :when (or (not include-tags)
                   (some include-tags (get command "tags")))]
-      (command->hyperfine-args finefile-map k command))))
+      [k command])))
 
 (def ^:private plot-types->script-bin-names
   {"histogram" "hyperfine-plot-histogram"

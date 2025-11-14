@@ -169,16 +169,27 @@
           _ (check-config-str config-str options)
           m (toml/read-string config-str)
           opts {:include-tags (:include-tag options)}
-          arg-seqs (core/finefile-map->hyperfine-arg-seqs m opts)
           cmds (map
-                 (fn [arg-seq]
-                   {:arg-seq arg-seq
+                 (fn [[k command]]
+                   {:arg-seq (core/command->hyperfine-args m k (dissoc command "setup"))
+                    :command command
                     :export-file (fs/path dir (str (random-uuid) ".json"))})
-                 arg-seqs)
+                 (core/select-commands m opts))
           env (some->> (get-in m ["defaults" "env"])
                 (map (fn [[k v]] [k (str v)])))
-          plots (get m "plots")]
-      (doseq [{:keys [arg-seq export-file]} cmds]
+          plots (get m "plots")
+          shell (get-in m ["defaults" "shell"] "bash")]
+      (doseq [{:keys [arg-seq command export-file]} cmds
+              :let [{:strs [setup]} command]]
+        (when (seq setup)
+          (apply p/exec
+            {:env env
+             :err :inherit
+             :out :discard}
+            (concat
+              (when shell
+                [shell "-c"])
+              [setup])))
         (apply p/exec
           {:env env
            :err :inherit
