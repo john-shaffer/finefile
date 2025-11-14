@@ -1,5 +1,6 @@
 repo_root := `pwd`
 
+alias b := build
 alias fmt := format
 alias u := update-deps
 
@@ -7,6 +8,10 @@ alias u := update-deps
 list:
     @# First command in the file is invoked by default
     @just --list
+
+# Build the finefile package
+build:
+    nix build
 
 # Format source and then check for unfixable issues
 format:
