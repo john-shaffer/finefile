@@ -93,7 +93,7 @@
         packages = {
           default = finefileWrapped;
           finefile = finefileWrapped;
-          finefile-unwrapped = finefileBin;
+          finefile-unwrapped = finefileUnwrapped;
         };
       }
     );
