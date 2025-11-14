@@ -31,6 +31,10 @@
               "descripton": "The value of an environment variable used when executing commands."
             }
           },
+          "export-json": {
+            "type": "string",
+            "description": "A file path to write benchmark results to."
+          },
           "prepare": {
             "type": "string",
             "description": "A command to run before each timing run."
@@ -54,16 +58,6 @@
         "required": [
           "command"
         ]
-      }
-    },
-    "defaults": {
-      "type": "object",
-      "description": "Default values used when running benchmarks.",
-      "properties": {
-        "export-json": {
-          "type": "string",
-          "description": "A file path to write benchmark results to."
-        }
       }
     },
     "plots": {

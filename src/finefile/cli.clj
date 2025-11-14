@@ -162,6 +162,12 @@
           (io/copy config-str stdin)))
       (System/exit @(p/exit-ref p)))))
 
+(defn merge-result-maps [result-maps]
+  (->> result-maps
+    (map #(get % "results"))
+    (reduce into [])
+    (hash-map "results")))
+
 (defn bench [{:keys [options]}]
   (fs/with-temp-dir [dir {:prefix "finefile"}]
     (let [{:keys [file]} options
@@ -197,27 +203,27 @@
           "hyperfine"
           (concat arg-seq
             ["--export-json" (str export-file)])))
-      (let [result-maps (map
-                          (fn [{:keys [export-file]}]
-                            (with-open [rdr (-> export-file fs/file io/reader)]
-                              (core/read-bench-json rdr)))
-                          cmds)
-            results (->> result-maps
-                      (map #(get % "results"))
-                      (reduce into [])
-                      (hash-map "results"))
-            plots-import (fs/path dir (str (random-uuid) ".json"))]
-        (when-let [export-json (get-in m ["defaults" "export-json"])]
+      (let [cmds (map
+                   (fn [{:as m :keys [export-file]}]
+                     (assoc m :result-map
+                       (with-open [rdr (-> export-file fs/file io/reader)]
+                         (core/read-bench-json rdr))))
+                   cmds)]
+        (doseq [[export-json cmds] (group-by #(get (:command %) "export-json") cmds)
+                :when (seq export-json)
+                :let [results (->> cmds (map :result-map) merge-result-maps)]]
           (with-open [w (io/writer (fs/file export-json))]
             (json/write results w {:indent true})))
         (when (seq plots)
-          (with-open [w (io/writer (fs/file plots-import))]
-            (json/write results w)))
-        (doseq [[_k plot] plots]
-          (apply p/exec
-            {:err :discard
-             :out :inherit}
-            (core/plot->args plot (str plots-import))))))))
+          (let [results (->> cmds (map :result-map) merge-result-maps)
+                plots-import (fs/path dir (str (random-uuid) ".json"))]
+            (with-open [w (io/writer (fs/file plots-import))]
+              (json/write results w))
+            (doseq [[_k plot] plots]
+              (apply p/exec
+                {:err :discard
+                 :out :inherit}
+                (core/plot->args plot (str plots-import))))))))))
 
 (defn check [{:keys [options]}]
   (let [{:keys [debug file]} options
