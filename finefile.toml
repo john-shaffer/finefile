@@ -1,5 +1,6 @@
-[defaults]
+[defaults.commands]
 shell = "none"
+warmup-runs = 1
 
 [commands.clojure-help]
 command = "just run -h"
