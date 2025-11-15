@@ -53,7 +53,8 @@
         },
         "warmup-runs": {
           "type": "integer",
-          "description": "The number of warmup runs to perform before timing runs."
+          "description": "The number of warmup runs to perform before timing runs.",
+          "minimum": 0
         }
       }
     }
