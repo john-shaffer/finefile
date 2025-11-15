@@ -26,7 +26,8 @@
   "Returns config-map conformed to schema. E.g., with default values set."
   [config-map]
   (-> config-map
-    (update-in ["defaults" "commands" "min-runs"] #(or % 10))))
+    (update-in ["defaults" "commands" "min-runs"] #(or % 10))
+    (update-in ["defaults" "commands" "shells"] #(or % "bash"))))
 
 (defn select-commands [finefile-map opts]
   (let [{:keys [exclude-tags include-tags]} opts

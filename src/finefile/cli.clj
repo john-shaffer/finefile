@@ -193,7 +193,7 @@
               :let [{:strs [setup]} command
                     env (some->> (get command "env")
                           (map (fn [[k v]] [k (str v)])))
-                    shell (get command "shell" "bash")]]
+                    shell (get command "shell")]]
         (when (seq setup)
           (apply p/exec
             {:env env

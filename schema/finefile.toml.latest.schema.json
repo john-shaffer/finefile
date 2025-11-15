@@ -58,7 +58,8 @@
         },
         "shell": {
           "type": "string",
-          "description": "The shell to use for executing commands."
+          "description": "The shell to use for executing commands.",
+          "default": "bash"
         },
         "tags": {
           "type": "array",
