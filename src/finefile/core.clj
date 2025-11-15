@@ -17,11 +17,14 @@
       (when cleanup ["--cleanup" cleanup]))))
 
 (defn select-commands [finefile-map opts]
-  (let [{:keys [include-tags]} opts
+  (let [{:keys [exclude-tags include-tags]} opts
         {:strs [commands]} finefile-map]
     (for [[k command] commands
-          :when (or (not include-tags)
-                  (some include-tags (get command "tags")))]
+          :when (and
+                  (or (not exclude-tags)
+                    (not (some exclude-tags (get command "tags"))))
+                  (or (not include-tags)
+                    (some include-tags (get command "tags"))))]
       [k command])))
 
 (def ^:private plot-types->script-bin-names

@@ -29,6 +29,10 @@
     :options
     [["-f" "--file FILE" "Configuration file"
       :default "finefile.toml"]
+     ["-T" "--exclude-tag TAG"
+      "Exclude commands with at least one excluded tag. May be specified multiple times."
+      :multi true
+      :update-fn (fnil conj #{})]
      ["-t" "--include-tag TAG"
       "Include only commands with at least one included tag. May be specified multiple times."
       :multi true
@@ -174,7 +178,8 @@
           config-str (slurp file)
           _ (check-config-str config-str options)
           m (toml/read-string config-str)
-          opts {:include-tags (:include-tag options)}
+          opts {:exclude-tags (:exclude-tag options)
+                :include-tags (:include-tag options)}
           command-defaults (get-in m ["defaults" "commands"])
           cmds (map
                  (fn [[k command]]
