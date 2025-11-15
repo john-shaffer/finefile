@@ -58,7 +58,7 @@
         },
         "shell": {
           "type": "string",
-          "description": "The shell to use for executing commands.",
+          "description": "The shell to use for executing commands. Set to \"none\" to execute commands directly, without a shell.",
           "default": "bash"
         },
         "tags": {

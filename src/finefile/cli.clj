@@ -200,7 +200,7 @@
              :err :inherit
              :out :discard}
             (concat
-              (when shell
+              (when (and shell (not= "none" shell))
                 [shell "-c"])
               [setup])))
         (apply p/exec
