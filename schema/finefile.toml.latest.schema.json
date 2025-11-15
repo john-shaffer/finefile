@@ -32,9 +32,25 @@
           "type": "string",
           "description": "A file path to write benchmark results to."
         },
+        "max-runs": {
+          "type": "integer",
+          "description": "The maximum number of timing runs to perform.",
+          "minimum": 1
+        },
+        "min-runs": {
+          "type": "integer",
+          "description": "The minimum number of timing runs to perform.",
+          "default": 10,
+          "minimum": 1
+        },
         "prepare": {
           "type": "string",
           "description": "A command to run before each timing run."
+        },
+        "runs": {
+          "type": "integer",
+          "description": "The exact number of timing runs to perform. If this is set, max-runs and min-runs are ignored.",
+          "minimum": 1
         },
         "setup": {
           "type": "string",

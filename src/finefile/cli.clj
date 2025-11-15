@@ -177,7 +177,7 @@
     (let [{:keys [file]} options
           config-str (slurp file)
           _ (check-config-str config-str options)
-          m (toml/read-string config-str)
+          m (core/conform-config (toml/read-string config-str))
           opts {:exclude-tags (:exclude-tag options)
                 :include-tags (:include-tag options)}
           command-defaults (get-in m ["defaults" "commands"])

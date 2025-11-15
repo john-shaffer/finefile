@@ -5,7 +5,8 @@
 (defn command->hyperfine-args [finefile-map k command]
   (let [{:strs [defaults]} finefile-map
         {:strs [cleanup shell]} defaults
-        {:strs [conclude command prepare setup warmup-runs]} command]
+        {:strs [conclude command max-runs min-runs prepare
+                runs setup warmup-runs]} command]
     (concat
       (when shell ["--shell" shell])
       ["--command-name" k]
@@ -14,7 +15,18 @@
       (when warmup-runs ["--warmup" (str warmup-runs)])
       (when command [command])
       (when conclude ["--conclude" conclude])
-      (when cleanup ["--cleanup" cleanup]))))
+      (when cleanup ["--cleanup" cleanup])
+      (if runs
+        ["--runs" (str runs)]
+        (concat
+          (when max-runs ["--max-runs" (str max-runs)])
+          (when min-runs ["--min-runs" (str min-runs)]))))))
+
+(defn conform-config
+  "Returns config-map conformed to schema. E.g., with default values set."
+  [config-map]
+  (-> config-map
+    (update-in ["defaults" "commands" "min-runs"] #(or % 10))))
 
 (defn select-commands [finefile-map opts]
   (let [{:keys [exclude-tags include-tags]} opts
