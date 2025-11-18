@@ -30,14 +30,19 @@
     (update-in ["defaults" "commands" "shell"] #(or % "bash"))))
 
 (defn select-commands [finefile-map opts]
-  (let [{:keys [exclude-tags include-tags]} opts
+  (let [{:keys [exclude-commands exclude-tags include-commands include-tags]} opts
         {:strs [commands]} finefile-map]
     (for [[k command] commands
           :when (and
+                  (or (not exclude-commands)
+                    (not (exclude-commands k)))
                   (or (not exclude-tags)
                     (not (some exclude-tags (get command "tags"))))
-                  (or (not include-tags)
-                    (some include-tags (get command "tags"))))]
+                  (or
+                    ; Include all commands by default
+                    (not (or include-commands include-tags))
+                    (some-> include-commands (get k))
+                    (some-> include-tags (some (get command "tags")))))]
       [k command])))
 
 (def ^:private plot-types->script-bin-names

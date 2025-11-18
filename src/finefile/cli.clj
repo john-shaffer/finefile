@@ -36,6 +36,14 @@
      ["-T" "--exclude-tag TAG"
       "Exclude commands with at least one excluded tag. May be specified multiple times."
       :multi true
+      :update-fn (fnil conj #{})]
+     ["-c" "--include-command COMMAND_NAME"
+      "Include a command by name. May be specified multiple times."
+      :multi true
+      :update-fn (fnil conj #{})]
+     ["-C" "--exclude-command COMMAND_NAME"
+      "Exclude a command by name. May be specified multiple times."
+      :multi true
       :update-fn (fnil conj #{})]]}
    "check"
    {:description "Check syntax of a config file."
@@ -178,7 +186,9 @@
           config-str (slurp file)
           _ (check-config-str config-str options)
           m (core/conform-config (toml/read-string config-str))
-          opts {:exclude-tags (:exclude-tag options)
+          opts {:exclude-commands (:exclude-command options)
+                :exclude-tags (:exclude-tag options)
+                :include-commands (:include-command options)
                 :include-tags (:include-tag options)}
           command-defaults (get-in m ["defaults" "commands"])
           cmds (map
