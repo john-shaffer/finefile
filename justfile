@@ -10,8 +10,7 @@ list:
     @just --list
 
 # Run benchmarks
-bench *args:
-    nix build
+bench *args: build
     nix run . -- bench {{args}}
 
 # Build the finefile package
