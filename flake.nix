@@ -10,7 +10,6 @@
     flake-utils.url = "github:numtide/flake-utils";
     hyperfine-flake = {
       inputs.flake-utils.follows = "flake-utils";
-      inputs.nixpkgs.follows = "nixpkgs";
       url = "github:john-shaffer/hyperfine-flake";
     };
   };
