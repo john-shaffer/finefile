@@ -237,10 +237,16 @@
             (with-open [w (io/writer (fs/file plots-import))]
               (json/write results w))
             (doseq [[_k plot] plots]
-              (apply p/exec
-                {:err :discard
-                 :out :inherit}
-                (core/plot->args plot (str plots-import))))))))))
+              (try
+                (apply p/exec
+                  {:err :discard
+                   :out :inherit}
+                  (core/plot->args plot (str plots-import)))
+                (catch Exception _
+                  (apply p/exec
+                    {:err :inherit
+                     :out :inherit}
+                    (core/plot->args plot (str plots-import))))))))))))
 
 (defn check [{:keys [options]}]
   (let [{:keys [debug file]} options
