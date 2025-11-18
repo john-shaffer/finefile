@@ -87,11 +87,11 @@
         "nixpkgs": "nixpkgs"
       },
       "locked": {
-        "lastModified": 1763477699,
-        "narHash": "sha256-JbBVIzH0bFi2n93H61AXzLFZ8GdfvKmnWUfhJ0Iymbw=",
+        "lastModified": 1763492975,
+        "narHash": "sha256-IqGZsoxhxUlKU75mxfIB//WT0GRZXNc9aSVlR+17Ez0=",
         "owner": "john-shaffer",
         "repo": "hyperfine-flake",
-        "rev": "9ba0356baeb0d3bb4ca5e3518e48633626976077",
+        "rev": "edd684bb34cc40ad20c36e4bb78f9dac21bf15e1",
         "type": "github"
       },
       "original": {
