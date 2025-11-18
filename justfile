@@ -11,7 +11,7 @@ list:
 
 # Run benchmarks
 bench *args: build
-    nix run . -- bench {{args}}
+    nix run . -- bench {{ args }}
 
 # Build the finefile package
 build:
