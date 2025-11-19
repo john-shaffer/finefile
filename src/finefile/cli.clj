@@ -181,7 +181,7 @@
     (hash-map "results")))
 
 (defn bench [{:keys [options]}]
-  (fs/with-temp-dir [dir {:prefix "finefile"}]
+  (fs/with-temp-dir [tmpdir {:prefix "finefile"}]
     (let [{:keys [file]} options
           base-dir (fs/parent file)
           config-str (slurp file)
@@ -197,7 +197,7 @@
                    (let [command (merge command-defaults command)]
                      {:arg-seq (core/command->hyperfine-args m k (dissoc command "setup"))
                       :command command
-                      :export-file (fs/path dir (str (random-uuid) ".json"))}))
+                      :export-file (fs/path tmpdir (str (random-uuid) ".json"))}))
                  (core/select-commands m opts))
           plots (get m "plots")]
       (doseq [{:keys [arg-seq command export-file]} cmds
@@ -238,7 +238,7 @@
             (json/write results w {:indent true})))
         (when (seq plots)
           (let [results (->> cmds (map :result-map) merge-result-maps)
-                plots-import (fs/path dir (str (random-uuid) ".json"))]
+                plots-import (fs/path tmpdir (str (random-uuid) ".json"))]
             (with-open [w (io/writer (fs/file plots-import))]
               (json/write results w))
             (doseq [[_k plot] plots]
