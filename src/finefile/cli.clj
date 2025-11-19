@@ -202,8 +202,7 @@
           plots (get m "plots")]
       (doseq [{:keys [arg-seq command export-file]} cmds
               :let [{:strs [dir setup]} command
-                    cmd-dir (when dir
-                              (str (fs/path base-dir dir)))
+                    cmd-dir (str (fs/path base-dir (or dir ".")))
                     env (some->> (get command "env")
                           (map (fn [[k v]] [k (str v)])))
                     shell (get command "shell")]]
