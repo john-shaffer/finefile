@@ -183,6 +183,7 @@
 (defn bench [{:keys [options]}]
   (fs/with-temp-dir [dir {:prefix "finefile"}]
     (let [{:keys [file]} options
+          base-dir (fs/parent file)
           config-str (slurp file)
           _ (check-config-str config-str options)
           m (core/conform-config (toml/read-string config-str))
@@ -200,13 +201,16 @@
                  (core/select-commands m opts))
           plots (get m "plots")]
       (doseq [{:keys [arg-seq command export-file]} cmds
-              :let [{:strs [setup]} command
+              :let [{:strs [dir setup]} command
+                    cmd-dir (when dir
+                              (str (fs/path base-dir dir)))
                     env (some->> (get command "env")
                           (map (fn [[k v]] [k (str v)])))
                     shell (get command "shell")]]
         (when (seq setup)
           (apply p/exec
-            {:env env
+            {:dir cmd-dir
+             :env env
              :err :inherit
              :out :discard}
             (concat
@@ -214,7 +218,8 @@
                 [shell "-c"])
               [setup])))
         (apply p/exec
-          {:env env
+          {:dir cmd-dir
+           :env env
            :err :inherit
            :out :inherit}
           "hyperfine"

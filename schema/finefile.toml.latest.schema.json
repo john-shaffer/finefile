@@ -20,6 +20,10 @@
           "type": "string",
           "description": "A command to run after each timing run."
         },
+        "dir": {
+          "type": "string",
+          "description": "The directory to execute the command in. May be an absolute path or a path relative to this configuration file."
+        },
         "env": {
           "type": "object",
           "description": "Environment variables used when executing commands.",
