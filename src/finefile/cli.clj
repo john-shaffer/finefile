@@ -234,7 +234,7 @@
         (doseq [[export-json cmds] (group-by #(get (:command %) "export-json") cmds)
                 :when (seq export-json)
                 :let [results (->> cmds (map :result-map) merge-result-maps)]]
-          (with-open [w (io/writer (fs/file export-json))]
+          (with-open [w (io/writer (fs/file base-dir export-json))]
             (json/write results w {:indent true})))
         (when (seq plots)
           (let [results (->> cmds (map :result-map) merge-result-maps)
@@ -246,12 +246,12 @@
                 (apply p/exec
                   {:err :discard
                    :out :inherit}
-                  (core/plot->args plot (str plots-import)))
+                  (core/plot->args plot (str (fs/path base-dir plots-import))))
                 (catch Exception _
                   (apply p/exec
                     {:err :inherit
                      :out :inherit}
-                    (core/plot->args plot (str plots-import))))))))))))
+                    (core/plot->args plot (str (fs/path base-dir plots-import)))))))))))))
 
 (defn check [{:keys [options]}]
   (let [{:keys [debug file]} options
