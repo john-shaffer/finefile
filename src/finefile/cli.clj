@@ -29,20 +29,20 @@
     :options
     [["-f" "--file FILE" "Configuration file"
       :default "finefile.toml"]
-     ["-t" "--include-tag TAG"
-      "Include only commands with at least one included tag. May be specified multiple times."
-      :multi true
-      :update-fn (fnil conj #{})]
-     ["-T" "--exclude-tag TAG"
-      "Exclude commands with at least one excluded tag. May be specified multiple times."
-      :multi true
-      :update-fn (fnil conj #{})]
      ["-c" "--include-command COMMAND_NAME"
       "Include a command by name. May be specified multiple times."
       :multi true
       :update-fn (fnil conj #{})]
      ["-C" "--exclude-command COMMAND_NAME"
       "Exclude a command by name. May be specified multiple times."
+      :multi true
+      :update-fn (fnil conj #{})]
+     ["-t" "--include-tag TAG"
+      "Include only commands with at least one included tag. May be specified multiple times."
+      :multi true
+      :update-fn (fnil conj #{})]
+     ["-T" "--exclude-tag TAG"
+      "Exclude commands with at least one excluded tag. May be specified multiple times."
       :multi true
       :update-fn (fnil conj #{})]]}
    "check"
