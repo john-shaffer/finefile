@@ -1,13 +1,16 @@
 [defaults.commands]
 shell = "none"
+max-runs = 50
 warmup-runs = 1
 
 [commands.clojure-help]
 command = "just run -h"
+min-runs = 2               # We don't need 10 runs to know it's slow
 tags = ["clojure", "help"]
 
 [commands.clojure-version]
 command = "just run --version"
+min-runs = 2                   # We don't need 10 runs to know it's slow
 tags = ["clojure", "version"]
 
 [commands.native-help]
