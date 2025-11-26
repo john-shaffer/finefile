@@ -4,8 +4,8 @@
 
 (defn command->hyperfine-args [finefile-map k command]
   (let [{:strs [defaults]} finefile-map
-        {:strs [cleanup shell]} defaults
-        {:strs [conclude command max-runs min-runs prepare
+        {:strs [shell]} defaults
+        {:strs [cleanup conclude command max-runs min-runs prepare
                 runs setup warmup-runs]} command]
     (concat
       (when shell ["--shell" shell])
