@@ -31,18 +31,22 @@
       :default "finefile.toml"]
      ["-c" "--include-command COMMAND_NAME"
       "Include a command by name. May be specified multiple times."
+      :id :include-commands
       :multi true
       :update-fn (fnil conj #{})]
      ["-C" "--exclude-command COMMAND_NAME"
       "Exclude a command by name. May be specified multiple times."
+      :id :exclude-commands
       :multi true
       :update-fn (fnil conj #{})]
      ["-t" "--include-tag TAG"
       "Include only commands with at least one included tag. May be specified multiple times."
+      :id :include-tags
       :multi true
       :update-fn (fnil conj #{})]
      ["-T" "--exclude-tag TAG"
       "Exclude commands with at least one excluded tag. May be specified multiple times."
+      :id :exclude-tags
       :multi true
       :update-fn (fnil conj #{})]]}
    "check"
@@ -187,10 +191,6 @@
           config-str (slurp file)
           _ (check-config-str config-str options)
           m (core/conform-config (toml/read-string config-str))
-          opts {:exclude-commands (:exclude-command options)
-                :exclude-tags (:exclude-tag options)
-                :include-commands (:include-command options)
-                :include-tags (:include-tag options)}
           command-defaults (get-in m ["defaults" "commands"])
           cmds (map
                  (fn [[k command]]
@@ -198,7 +198,7 @@
                      {:arg-seq (core/command->hyperfine-args m k (dissoc command "setup"))
                       :command command
                       :export-file (fs/path tmpdir (str (random-uuid) ".json"))}))
-                 (core/select-commands m opts))
+                 (core/select-commands m options))
           plots (get m "plots")]
       (doseq [{:keys [arg-seq command export-file]} cmds
               :let [{:strs [dir setup]} command
