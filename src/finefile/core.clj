@@ -2,7 +2,8 @@
   (:require
    [clojure.data.json :as json]))
 
-(defn command->hyperfine-args [finefile-map k command]
+(defn command->hyperfine-args
+  [finefile-map k command {:keys [steps]}]
   (let [{:strs [defaults]} finefile-map
         {:strs [shell]} defaults
         {:strs [cleanup conclude command max-runs min-runs prepare
@@ -10,12 +11,14 @@
     (concat
       (when shell ["--shell" shell])
       ["--command-name" k]
-      (when setup ["--setup" setup])
-      (when prepare ["--prepare" prepare])
+      (when (and (steps "setup") setup) ["--setup" setup])
+      (when (and (steps "prepare") prepare) ["--prepare" prepare])
       (when warmup-runs ["--warmup" (str warmup-runs)])
-      (when command [command])
-      (when conclude ["--conclude" conclude])
-      (when cleanup ["--cleanup" cleanup])
+      (if (and (steps "command") command)
+        [command]
+        ["true"])
+      (when (and (steps "conclude") conclude) ["--conclude" conclude])
+      (when (and (steps "cleanup") cleanup) ["--cleanup" cleanup])
       (if runs
         ["--runs" (str runs)]
         (concat

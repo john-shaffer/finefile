@@ -13,6 +13,13 @@
 (def ^:const BIN-NAME "finefile")
 (def ^:const BIN-VERSION "0.1.0")
 
+(def step-names
+  ["setup"
+   "prepare"
+   "command"
+   "conclude"
+   "cleanup"])
+
 (def global-options
   [[nil "--debug"]
    ["-h" "--help"]])
@@ -48,7 +55,15 @@
       "Exclude commands with at least one excluded tag. May be specified multiple times."
       :id :exclude-tags
       :multi true
-      :update-fn (fnil conj #{})]]}
+      :update-fn (fnil conj #{})]
+     [nil "--step STEP"
+      "Execute only the given step(s). May be specified multiple times."
+      :id :steps
+      :multi true
+      :update-fn (fnil conj #{})
+      :validate
+      [#(boolean (some (partial = %) step-names))
+       (str "Must be one of: " (str/join ", " step-names))]]]}
    "check"
    {:description "Check syntax of a config file."
     :options
@@ -186,7 +201,8 @@
 
 (defn bench [{:keys [options]}]
   (fs/with-temp-dir [tmpdir {:prefix "finefile"}]
-    (let [{:keys [file]} options
+    (let [options (update options :steps #(or % (set step-names)))
+          {:keys [file steps]} options
           base-dir (fs/parent file)
           config-str (slurp file)
           _ (check-config-str config-str options)
@@ -194,8 +210,15 @@
           command-defaults (get-in m ["defaults" "commands"])
           cmds (map
                  (fn [[k command]]
-                   (let [command (merge command-defaults command)]
-                     {:arg-seq (core/command->hyperfine-args m k (dissoc command "setup"))
+                   (let [command (merge command-defaults command)
+                         command (if (steps "command")
+                                   command
+                                   ; If we're not running the actual command,
+                                   ; just run hyperfine once to run the other steps
+                                   (assoc command
+                                     "command" "true"
+                                     "runs" 1))]
+                     {:arg-seq (core/command->hyperfine-args m k (dissoc command "setup") options)
                       :command command
                       :export-file (fs/path tmpdir (str (random-uuid) ".json"))}))
                  (core/select-commands m options))
@@ -206,7 +229,7 @@
                     env (some->> (get command "env")
                           (map (fn [[k v]] [k (str v)])))
                     shell (get command "shell")]]
-        (when (seq setup)
+        (when (and (steps "setup") (seq setup))
           (apply p/exec
             {:dir cmd-dir
              :env env
@@ -216,14 +239,17 @@
               (when (and shell (not= "none" shell))
                 [shell "-c"])
               [setup])))
-        (apply p/exec
-          {:dir cmd-dir
-           :env env
-           :err :inherit
-           :out :inherit}
-          "hyperfine"
-          (concat arg-seq
-            ["--export-json" (str export-file)])))
+        ; We might not have any arg-seq if none of the steps
+        ; were selected to be run.
+        (when (seq arg-seq)
+          (apply p/exec
+            {:dir cmd-dir
+             :env env
+             :err :inherit
+             :out :inherit}
+            "hyperfine"
+            (concat arg-seq
+              ["--export-json" (str export-file)]))))
       (let [cmds (map
                    (fn [{:as m :keys [export-file]}]
                      (assoc m :result-map
