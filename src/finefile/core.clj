@@ -3,11 +3,9 @@
    [clojure.data.json :as json]))
 
 (defn command->hyperfine-args
-  [finefile-map k command {:keys [steps]}]
-  (let [{:strs [defaults]} finefile-map
-        {:strs [shell]} defaults
-        {:strs [cleanup conclude command max-runs min-runs prepare
-                runs setup warmup-runs]} command]
+  [k command {:keys [steps]}]
+  (let [{:strs [cleanup conclude command max-runs min-runs prepare
+                runs setup shell warmup-runs]} command]
     (concat
       (when shell ["--shell" shell])
       ["--command-name" k]

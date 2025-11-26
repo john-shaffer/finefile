@@ -218,7 +218,7 @@
                                    (assoc command
                                      "command" "true"
                                      "runs" 1))]
-                     {:arg-seq (core/command->hyperfine-args m k (dissoc command "setup") options)
+                     {:arg-seq (core/command->hyperfine-args k (dissoc command "setup") options)
                       :command command
                       :export-file (fs/path tmpdir (str (random-uuid) ".json"))}))
                  (core/select-commands m options))
