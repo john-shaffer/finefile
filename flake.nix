@@ -23,6 +23,7 @@
         overlays = [ clj-nix.overlays.default ];
       };
       let
+        jdkPackage = jdk25_headless;
         finefileSrc = lib.sources.sourceFilesBySuffices self [
           ".clj"
           ".edn"
@@ -32,6 +33,7 @@
           pkgs = nixpkgs.legacyPackages.${system};
           modules = [
             {
+              jdk = jdkPackage;
               main-ns = "finefile.cli";
               name = "finefile";
               nativeImage.enable = true;
@@ -75,7 +77,7 @@
           buildInputs =
             with pkgs;
             [
-              clojure
+              (clojure.overrideAttrs { jdk = jdkPackage; })
               deps-lock
               fd
               jsonfmt
