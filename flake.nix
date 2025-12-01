@@ -2,7 +2,7 @@
   description = "finefile CLI for hyperfine benchmarks";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-25.05";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-25.11";
     clj-nix = {
       inputs.nixpkgs.follows = "nixpkgs";
       url = "github:jlesquembre/clj-nix";
@@ -35,6 +35,7 @@
               main-ns = "finefile.cli";
               name = "finefile";
               nativeImage.enable = true;
+              nativeImage.graalvm = graalvmPackages.graalvm-ce;
               projectSrc = finefileSrc;
               version = "0.1.0";
             }
@@ -79,7 +80,7 @@
               fd
               jsonfmt
               just
-              nixfmt-rfc-style
+              nixfmt
               omnix
             ]
             ++ runtimePaths;

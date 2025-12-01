@@ -13,14 +13,14 @@
       "hash": "sha256-JugjMBV9a4RLZ6gGSUXiBlgedyl3GD4+Mf7GBYqppZs="
     },
     {
-      "mvn-path": "babashka/fs/0.5.27/fs-0.5.27.jar",
+      "mvn-path": "babashka/fs/0.5.30/fs-0.5.30.jar",
       "mvn-repo": "https://repo.clojars.org/",
-      "hash": "sha256-ZNkpMmJ+KvDwCAaUF76wC6MIOBhmVAVKFBM8TfiFkhs="
+      "hash": "sha256-Wf4BeIxSN9FAHd57aFL7OzWjO6lH9XG+BK4MPDs81VI="
     },
     {
-      "mvn-path": "babashka/fs/0.5.27/fs-0.5.27.pom",
+      "mvn-path": "babashka/fs/0.5.30/fs-0.5.30.pom",
       "mvn-repo": "https://repo.clojars.org/",
-      "hash": "sha256-i/WnArsFKbDV4G8GS4F4z5H5Ktn+vShl717j0J3I9yM="
+      "hash": "sha256-fCwnSrKop60b0zcqrhvYUSZ7Yk/QOOrRoE8Y/X6k6Ko="
     },
     {
       "mvn-path": "clj-commons/clj-yaml/1.0.29/clj-yaml-1.0.29.jar",
