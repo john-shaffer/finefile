@@ -312,7 +312,9 @@
                (when schema-file
                  ["--schema" schema-file]))
         p (apply p/start
-            {:err :inherit :out :inherit}
+            {:err :inherit
+             :in (if (= "-" file) :inherit :pipe)
+             :out :inherit}
             args)
         exit @(p/exit-ref p)]
     (when-not (zero? exit)
