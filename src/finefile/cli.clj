@@ -13,6 +13,14 @@
 (def ^:const BIN-NAME "finefile")
 (def ^:const BIN-VERSION "0.1.0")
 
+(defn- deep-merge
+  "Recursively deep merges maps. Treats nil as
+   an empty map when merging."
+  [& args]
+  (if (every? #(or (map? %) (nil? %)) args)
+    (apply merge-with deep-merge args)
+    (last args)))
+
 (def step-names
   ["setup"
    "prepare"
@@ -34,8 +42,11 @@
    {:description
     "Run the benchmark commands specified in the config file."
     :options
-    [["-f" "--file FILE" "Configuration file"
-      :default "finefile.toml"]
+    [["-f" "--file FILE" "Configuration file. Default: \"finefile.toml\". May be specified multiple times, in which case configuration will be merged. Values in later files override values in earlier files."
+      :id :config-files
+      :multi true
+      :default ["finefile.toml"]
+      :update-fn (fnil conj [])]
      ["-c" "--include-command COMMAND_NAME"
       "Include a command by name. May be specified multiple times."
       :id :include-commands
@@ -202,11 +213,16 @@
 (defn bench [{:keys [options]}]
   (fs/with-temp-dir [tmpdir {:prefix "finefile"}]
     (let [options (update options :steps #(or % (set step-names)))
-          {:keys [file steps]} options
-          base-dir (fs/parent file)
-          config-str (slurp file)
-          _ (check-config-str config-str options)
-          m (core/conform-config (toml/read-string config-str))
+          {:keys [config-files steps]} options
+          base-dir (fs/parent (first config-files))
+          m (core/conform-config
+              (reduce
+                (fn [m fname]
+                  (let [config-str (slurp fname)]
+                    (check-config-str config-str options)
+                    (deep-merge m (toml/read-string config-str))))
+                {}
+                config-files))
           command-defaults (get-in m ["defaults" "commands"])
           cmds (map
                  (fn [[k command]]

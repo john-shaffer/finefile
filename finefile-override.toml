@@ -1,0 +1,4 @@
+# Override configuration values
+# Use like "finefile bench -f finefile.toml -f finefile-override.toml"
+[defaults.commands]
+max-runs = "100"
