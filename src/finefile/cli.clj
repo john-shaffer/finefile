@@ -214,15 +214,23 @@
   (fs/with-temp-dir [tmpdir {:prefix "finefile"}]
     (let [options (update options :steps #(or % (set step-names)))
           {:keys [config-files steps]} options
-          base-dir (fs/parent (first config-files))
-          m (core/conform-config
+          base-config (first config-files)
+          base-dir (if (= "-" base-config)
+                     (fs/cwd)
+                     (fs/parent base-config))
+          m (->> config-files
+              ; Ensure we only try to read each file once, particularly stdin
+              ; Keep the last copy of each filename since that one has merge precedence
+              reverse distinct reverse
               (reduce
                 (fn [m fname]
-                  (let [config-str (slurp fname)]
+                  (let [config-str (if (= "-" fname)
+                                     (slurp *in*)
+                                     (slurp fname))]
                     (check-config-str config-str options)
                     (deep-merge m (toml/read-string config-str))))
-                {}
-                config-files))
+                {})
+              core/conform-config)
           command-defaults (get-in m ["defaults" "commands"])
           cmds (map
                  (fn [[k command]]
