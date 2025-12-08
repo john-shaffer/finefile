@@ -2,7 +2,7 @@ repo_root := `pwd`
 
 alias b := build
 alias fmt := format
-alias u := update-deps
+alias u := update
 
 [private]
 list:
@@ -30,7 +30,7 @@ run *args:
     clojure -M -m finefile.cli {{ args }}
 
 # Update dependencies
-update-deps: && update-deps-lock
+update: && update-deps-lock
     nix flake update
     clj -M:antq --upgrade --force
 
