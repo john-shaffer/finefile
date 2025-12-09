@@ -210,6 +210,49 @@
     (reduce into [])
     (hash-map "results")))
 
+(defn bench-cmds [{:keys [base-dir cmds steps]}]
+  (keep
+    (fn [cmd]
+      (let [{:keys [arg-seq command export-file k]} cmd
+            {:strs [dir setup timeout-seconds]} command
+            cmd-dir (str (fs/path base-dir (or dir ".")))
+            env (some->> (get command "env")
+                  (map (fn [[k v]] [k (str v)])))
+            shell (get command "shell")
+            fut
+            (future
+              (when (and (steps "setup") (seq setup))
+                (apply p/exec
+                  {:dir cmd-dir
+                   :env env
+                   :err :inherit
+                   :out :discard}
+                  (concat
+                    (when (and shell (not= "none" shell))
+                      [shell "-c"])
+                    [setup])))
+              ; We might not have any arg-seq if none of the steps
+              ; were selected to be run.
+              (when (seq arg-seq)
+                (apply p/exec
+                  {:dir cmd-dir
+                   :env env
+                   :err :inherit
+                   :out :inherit}
+                  "hyperfine"
+                  (concat arg-seq
+                    ["--export-json" (str export-file)]))))
+            result (if timeout-seconds
+                     (deref fut (* 1000 timeout-seconds) :not-found)
+                     (deref fut))]
+        (if (= :not-found result)
+          (do
+            (future-cancel fut)
+            (println k "benchmark timed out after" timeout-seconds "seconds")
+            (assoc cmd :status "failed"))
+          (assoc cmd :status "succeeded"))))
+    cmds))
+
 (defn bench [{:keys [options]}]
   (fs/with-temp-dir [tmpdir {:prefix "finefile"}]
     (let [options (update options :steps #(or % (set step-names)))
@@ -244,63 +287,44 @@
                                      "runs" 1))]
                      {:arg-seq (core/command->hyperfine-args k (dissoc command "setup") options)
                       :command command
-                      :export-file (fs/path tmpdir (str (random-uuid) ".json"))}))
+                      :export-file (fs/path tmpdir (str (random-uuid) ".json"))
+                      :k k}))
                  (core/select-commands m options))
-          plots (get m "plots")]
-      (doseq [{:keys [arg-seq command export-file]} cmds
-              :let [{:strs [dir setup]} command
-                    cmd-dir (str (fs/path base-dir (or dir ".")))
-                    env (some->> (get command "env")
-                          (map (fn [[k v]] [k (str v)])))
-                    shell (get command "shell")]]
-        (when (and (steps "setup") (seq setup))
-          (apply p/exec
-            {:dir cmd-dir
-             :env env
-             :err :inherit
-             :out :discard}
-            (concat
-              (when (and shell (not= "none" shell))
-                [shell "-c"])
-              [setup])))
-        ; We might not have any arg-seq if none of the steps
-        ; were selected to be run.
-        (when (seq arg-seq)
-          (apply p/exec
-            {:dir cmd-dir
-             :env env
-             :err :inherit
-             :out :inherit}
-            "hyperfine"
-            (concat arg-seq
-              ["--export-json" (str export-file)]))))
-      (let [cmds (map
-                   (fn [{:as m :keys [export-file]}]
+          plots (get m "plots")
+          cmds (doall
+                 (bench-cmds {:base-dir base-dir :cmds cmds :steps steps}))
+          cmds (map
+                 (fn [{:as m :keys [export-file status]}]
+                   (if (= "succeeded" status)
                      (assoc m :result-map
                        (with-open [rdr (-> export-file fs/file io/reader)]
-                         (core/read-bench-json rdr))))
-                   cmds)]
-        (doseq [[export-json cmds] (group-by #(get (:command %) "export-json") cmds)
-                :when (seq export-json)
-                :let [results (->> cmds (map :result-map) merge-result-maps)]]
-          (with-open [w (io/writer (fs/file base-dir export-json))]
-            (json/write results w {:indent true})))
-        (when (seq plots)
-          (let [results (->> cmds (map :result-map) merge-result-maps)
-                plots-import (fs/path tmpdir (str (random-uuid) ".json"))]
-            (with-open [w (io/writer (fs/file plots-import))]
-              (json/write results w))
-            (doseq [[_k plot] plots]
-              (try
+                         (core/read-bench-json rdr)))
+                     m))
+                 cmds)]
+      (doseq [[export-json cmds] (group-by #(get (:command %) "export-json") cmds)
+              :when (seq export-json)
+              :let [results (->> cmds (keep :result-map) merge-result-maps)]]
+        (with-open [w (io/writer (fs/file base-dir export-json))]
+          (json/write results w {:indent true})))
+      (when (seq plots)
+        (let [results (->> cmds (keep :result-map) merge-result-maps)
+              plots-import (fs/path tmpdir (str (random-uuid) ".json"))]
+          (with-open [w (io/writer (fs/file plots-import))]
+            (json/write results w))
+          (doseq [[_k plot] plots]
+            (try
+              (apply p/exec
+                {:err :discard
+                 :out :inherit}
+                (core/plot->args plot (str (fs/path base-dir plots-import))))
+              (catch Exception _
                 (apply p/exec
-                  {:err :discard
+                  {:err :inherit
                    :out :inherit}
-                  (core/plot->args plot (str (fs/path base-dir plots-import))))
-                (catch Exception _
-                  (apply p/exec
-                    {:err :inherit
-                     :out :inherit}
-                    (core/plot->args plot (str (fs/path base-dir plots-import)))))))))))))
+                  (core/plot->args plot (str (fs/path base-dir plots-import)))))))))
+      (if (some #(not= "succeeded" (:status %)) cmds)
+        (System/exit 1)
+        (System/exit 0)))))
 
 (defn check [{:keys [options]}]
   (let [{:keys [debug file]} options

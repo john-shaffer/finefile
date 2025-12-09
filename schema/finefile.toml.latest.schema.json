@@ -72,6 +72,11 @@
             "type": "string"
           }
         },
+        "timeout-seconds": {
+          "type": "integer",
+          "description": "The maximum number of seconds to allow the benchmark to run before terminating it. Time is counted from the start of setup until after all sets of commands and the cleanup step have finished.",
+          "minimum": 1
+        },
         "warmup-runs": {
           "type": "integer",
           "description": "The number of warmup runs to perform before timing runs.",
