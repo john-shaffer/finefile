@@ -210,6 +210,19 @@
     (reduce into [])
     (hash-map "results")))
 
+(defn- destroy-process-tree [^Process p]
+  (doseq [handle (-> p .toHandle .descendants .iterator iterator-seq)]
+    (.destroy handle)))
+
+(defn- interruptible-exec [opts & args]
+  (let [p (apply p/start opts args)
+        exit (try (-> p p/exit-ref deref)
+               (catch InterruptedException e
+                 (destroy-process-tree p)
+                 (throw e)))]
+    (when-not (zero? exit)
+      (throw (RuntimeException. (str "Process failed with exit=" exit))))))
+
 (defn bench-cmds [{:keys [base-dir cmds steps]}]
   (keep
     (fn [cmd]
@@ -222,7 +235,7 @@
             fut
             (future
               (when (and (steps "setup") (seq setup))
-                (apply p/exec
+                (apply interruptible-exec
                   {:dir cmd-dir
                    :env env
                    :err :inherit
@@ -234,7 +247,7 @@
               ; We might not have any arg-seq if none of the steps
               ; were selected to be run.
               (when (seq arg-seq)
-                (apply p/exec
+                (apply interruptible-exec
                   {:dir cmd-dir
                    :env env
                    :err :inherit
