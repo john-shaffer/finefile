@@ -1,6 +1,7 @@
 [defaults.commands]
 shell = "none"
 max-runs = 50
+timeout-seconds = 60
 warmup-runs = 1
 
 [commands.clojure-help]
