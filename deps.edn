@@ -1,6 +1,6 @@
 {:paths ["src"]
  :deps
- {org.clojure/clojure {:mvn/version "1.12.3"}
+ {org.clojure/clojure {:mvn/version "1.12.4"}
   babashka/fs {:mvn/version "0.5.30"}
   io.github.tonsky/toml-clj {:mvn/version "0.1.0"}
   org.clojure/data.json {:mvn/version "2.5.1"}
