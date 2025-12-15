@@ -288,21 +288,22 @@
                 {})
               core/conform-config)
           command-defaults (get-in m ["defaults" "commands"])
-          cmds (map
-                 (fn [[k command]]
-                   (let [command (merge command-defaults command)
-                         command (if (steps "command")
-                                   command
-                                   ; If we're not running the actual command,
-                                   ; just run hyperfine once to run the other steps
-                                   (assoc command
-                                     "command" "true"
-                                     "runs" 1))]
-                     {:arg-seq (core/command->hyperfine-args k (dissoc command "setup") options)
-                      :command command
-                      :export-file (fs/path tmpdir (str (random-uuid) ".json"))
-                      :k k}))
-                 (core/select-commands m options))
+          cmds (->> (core/select-commands m options)
+                 (map
+                   (fn [[k command]]
+                     (let [command (merge command-defaults command)
+                           command (if (steps "command")
+                                     command
+                                     ; If we're not running the actual command,
+                                     ; just run hyperfine once to run the other steps
+                                     (assoc command
+                                       "command" "true"
+                                       "runs" 1))]
+                       {:arg-seq (core/command->hyperfine-args k (dissoc command "setup") options)
+                        :command command
+                        :export-file (fs/path tmpdir (str (random-uuid) ".json"))
+                        :k k})))
+                 (sort-by :k))
           plots (get m "plots")
           cmds (doall
                  (bench-cmds {:base-dir base-dir :cmds cmds :steps steps}))
