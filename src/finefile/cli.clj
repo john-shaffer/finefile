@@ -263,8 +263,9 @@
             (println k "benchmark timed out after" timeout-seconds "seconds")
             (assoc cmd :status "failed"))
           (assoc cmd
-            :result-map (with-open [rdr (-> export-file fs/file io/reader)]
-                          (core/read-bench-json rdr))
+            :result-map (when (seq arg-seq)
+                          (with-open [rdr (-> export-file fs/file io/reader)]
+                            (core/read-bench-json rdr)))
             :status "succeeded"))))
     cmds))
 

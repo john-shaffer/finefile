@@ -5,23 +5,28 @@
 (defn command->hyperfine-args
   [k command {:keys [steps]}]
   (let [{:strs [cleanup conclude command max-runs min-runs prepare
-                runs setup shell warmup-runs]} command]
-    (concat
-      (when shell ["--shell" shell])
-      ["--command-name" k]
-      (when (and (steps "setup") setup) ["--setup" setup])
-      (when (and (steps "prepare") prepare) ["--prepare" prepare])
-      (when warmup-runs ["--warmup" (str warmup-runs)])
-      (if (and (steps "command") command)
-        [command]
-        ["true"])
-      (when (and (steps "conclude") conclude) ["--conclude" conclude])
-      (when (and (steps "cleanup") cleanup) ["--cleanup" cleanup])
-      (if runs
-        ["--runs" (str runs)]
-        (concat
-          (when max-runs ["--max-runs" (str max-runs)])
-          (when min-runs ["--min-runs" (str min-runs)]))))))
+                runs setup shell warmup-runs]} command
+        pre-steps (concat
+                    (when (and (steps "setup") setup) ["--setup" setup])
+                    (when (and (steps "prepare") prepare) ["--prepare" prepare]))
+        post-steps (concat
+                     (when (and (steps "conclude") conclude) ["--conclude" conclude])
+                     (when (and (steps "cleanup") cleanup) ["--cleanup" cleanup]))]
+    (when (or (seq pre-steps) (seq post-steps) (and (steps "command") command))
+      (concat
+        (when shell ["--shell" shell])
+        ["--command-name" k]
+        pre-steps
+        (when warmup-runs ["--warmup" (str warmup-runs)])
+        (if (and (steps "command") command)
+          [command]
+          ["true"])
+        (if runs
+          ["--runs" (str runs)]
+          (concat
+            (when max-runs ["--max-runs" (str max-runs)])
+            (when min-runs ["--min-runs" (str min-runs)])))
+        post-steps))))
 
 (defn conform-config
   "Returns config-map conformed to schema. E.g., with default values set."
