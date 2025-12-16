@@ -45,7 +45,6 @@
     [["-f" "--file FILE" "Configuration file. Default: \"finefile.toml\". May be specified multiple times, in which case configuration will be merged. Values in later files override values in earlier files."
       :id :config-files
       :multi true
-      :default ["finefile.toml"]
       :update-fn (fnil conj [])]
      ["-c" "--include-command COMMAND_NAME"
       "Include a command by name. May be specified multiple times."
@@ -270,6 +269,7 @@
   (fs/with-temp-dir [tmpdir {:prefix "finefile"}]
     (let [options (update options :steps #(or % (set step-names)))
           {:keys [config-files steps]} options
+          config-files (or (seq config-files) ["finefile.toml"])
           base-config (first config-files)
           base-dir (if (= "-" base-config)
                      (fs/cwd)
