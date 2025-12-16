@@ -262,7 +262,10 @@
             (future-cancel fut)
             (println k "benchmark timed out after" timeout-seconds "seconds")
             (assoc cmd :status "failed"))
-          (assoc cmd :status "succeeded"))))
+          (assoc cmd
+            :result-map (with-open [rdr (-> export-file fs/file io/reader)]
+                          (core/read-bench-json rdr))
+            :status "succeeded"))))
     cmds))
 
 (defn bench [{:keys [options]}]
@@ -306,15 +309,7 @@
                  (sort-by :k))
           plots (get m "plots")
           cmds (doall
-                 (bench-cmds {:base-dir base-dir :cmds cmds :steps steps}))
-          cmds (map
-                 (fn [{:as m :keys [export-file status]}]
-                   (if (= "succeeded" status)
-                     (assoc m :result-map
-                       (with-open [rdr (-> export-file fs/file io/reader)]
-                         (core/read-bench-json rdr)))
-                     m))
-                 cmds)]
+                 (bench-cmds {:base-dir base-dir :cmds cmds :steps steps}))]
       (doseq [[export-json cmds] (group-by #(get (:command %) "export-json") cmds)
               :when (seq export-json)
               :let [results (->> cmds (keep :result-map) merge-result-maps)]]
