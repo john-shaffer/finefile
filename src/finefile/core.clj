@@ -62,5 +62,6 @@
      (fn [k v]
        (case k
          "exit_codes" (int-array v)
+         "memory_usage_byte" (long-array v)
          "times" (double-array v)
          v))}))
