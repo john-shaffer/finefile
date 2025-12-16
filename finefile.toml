@@ -1,4 +1,5 @@
 [defaults.commands]
+export-json = "bench.json"
 max-runs = 50
 shell = "none"
 timeout-seconds = 60
