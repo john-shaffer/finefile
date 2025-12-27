@@ -54,7 +54,7 @@
           '';
         };
         runtimePaths = [
-          hyperfine-flake.packages.${system}.default
+          pkgs.hyperfine
           hyperfine-flake.packages.${system}.scripts
           pkgs.taplo
         ];
