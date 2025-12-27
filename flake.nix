@@ -2,14 +2,14 @@
   description = "finefile CLI for hyperfine benchmarks";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-25.11";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
     clj-nix = {
       inputs.nixpkgs.follows = "nixpkgs";
       url = "github:jlesquembre/clj-nix";
     };
     flake-utils.url = "github:numtide/flake-utils";
     hyperfine-flake = {
-      inputs.flake-utils.follows = "flake-utils";
+      inputs.nixpkgs.follows = "nixpkgs";
       url = "github:john-shaffer/hyperfine-flake";
     };
   };
