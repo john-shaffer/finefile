@@ -7,7 +7,6 @@
       inputs.nixpkgs.follows = "nixpkgs";
       url = "github:jlesquembre/clj-nix";
     };
-    flake-utils.url = "github:numtide/flake-utils";
     hyperfine-flake = {
       inputs.nixpkgs.follows = "nixpkgs";
       url = "github:john-shaffer/hyperfine-flake";
@@ -16,87 +15,113 @@
   outputs =
     inputs:
     with inputs;
-    flake-utils.lib.eachDefaultSystem (
-      system:
-      with import nixpkgs {
-        inherit system;
-        overlays = [ clj-nix.overlays.default ];
-      };
-      let
-        jdkPackage = jdk25_headless;
-        finefileSrc = lib.sources.sourceFilesBySuffices self [
-          ".clj"
-          ".edn"
-          ".json"
-        ];
-        finefileBin = clj-nix.lib.mkCljApp {
-          pkgs = nixpkgs.legacyPackages.${system};
-          modules = [
-            {
-              jdk = jdkPackage;
-              main-ns = "finefile.cli";
-              name = "finefile";
-              nativeImage.enable = true;
-              nativeImage.graalvm = graalvmPackages.graalvm-ce;
-              projectSrc = finefileSrc;
-              version = "0.1.0";
+    let
+      supportedSystems = [
+        "aarch64-darwin"
+        "aarch64-linux"
+        "x86_64-darwin"
+        "x86_64-linux"
+      ];
+      forAllSystems =
+        function:
+        nixpkgs.lib.genAttrs supportedSystems (
+          system:
+          function system (
+            import nixpkgs {
+              inherit system;
+              overlays = [
+                clj-nix.overlays.default
+              ];
             }
-          ];
-        };
-        finefileUnwrapped = stdenv.mkDerivation {
-          inherit (finefileBin) meta name version;
-          phases = [ "installPhase" ];
-          installPhase = ''
-            mkdir -p $out/bin
-            mkdir -p $out/share/finefile
-            cp ${finefileBin}/bin/finefile $out/bin/finefile
-            cp ${finefileSrc}/schema/finefile.toml.latest.schema.json $out/share/finefile
-          '';
-        };
-        runtimePaths = [
+          )
+        );
+      getJdk = (pkgs: pkgs.jdk25_headless);
+      getRuntimePaths = (
+        system: pkgs: [
           pkgs.hyperfine
           hyperfine-flake.packages.${system}.scripts
           pkgs.taplo
-        ];
-        finefileWrapped =
-          runCommand finefileUnwrapped.name
-            {
-              inherit (finefileUnwrapped) meta name version;
-
-              nativeBuildInputs = [ makeWrapper ];
-            }
-            ''
-              mkdir -p $out/bin
-              makeWrapper ${finefileUnwrapped}/bin/finefile $out/bin/finefile \
-                --prefix PATH : ${lib.makeBinPath runtimePaths} \
-                --set-default FINEFILE_SCHEMA ${finefileUnwrapped}/share/finefile/finefile.toml.latest.schema.json
+        ]
+      );
+    in
+    {
+      devShells = forAllSystems (
+        system: pkgs: {
+          default = pkgs.mkShell {
+            buildInputs =
+              with pkgs;
+              [
+                (clojure.overrideAttrs { jdk = getJdk pkgs; })
+                deps-lock
+                fd
+                jsonfmt
+                just
+                nixfmt
+                omnix
+              ]
+              ++ getRuntimePaths system pkgs;
+            shellHook = ''
+              echo
+              echo -e "Run '\033[1mjust <recipe>\033[0m' to get started"
+              just --list
             '';
-      in
-      {
-        devShells.default = pkgs.mkShell {
-          buildInputs =
-            with pkgs;
-            [
-              (clojure.overrideAttrs { jdk = jdkPackage; })
-              deps-lock
-              fd
-              jsonfmt
-              just
-              nixfmt
-              omnix
-            ]
-            ++ runtimePaths;
-          shellHook = ''
-            echo
-            echo -e "Run '\033[1mjust <recipe>\033[0m' to get started"
-            just --list
-          '';
-        };
-        packages = {
+          };
+        }
+      );
+      packages = forAllSystems (
+        systems: pkgs:
+        with pkgs;
+        let
+          jdkPackage = getJdk pkgs;
+          finefileSrc = lib.sources.sourceFilesBySuffices self [
+            ".clj"
+            ".edn"
+            ".json"
+          ];
+          finefileBin = clj-nix.lib.mkCljApp {
+            inherit pkgs;
+            modules = [
+              {
+                jdk = jdkPackage;
+                main-ns = "finefile.cli";
+                name = "finefile";
+                nativeImage.enable = true;
+                nativeImage.graalvm = graalvmPackages.graalvm-ce;
+                projectSrc = finefileSrc;
+                version = "0.1.0";
+              }
+            ];
+          };
+          finefileUnwrapped = stdenv.mkDerivation {
+            inherit (finefileBin) meta name version;
+            phases = [ "installPhase" ];
+            installPhase = ''
+              mkdir -p $out/bin
+              mkdir -p $out/share/finefile
+              cp ${finefileBin}/bin/finefile $out/bin/finefile
+              cp ${finefileSrc}/schema/finefile.toml.latest.schema.json $out/share/finefile
+            '';
+          };
+          runtimePaths = getRuntimePaths system pkgs;
+          finefileWrapped =
+            runCommand finefileUnwrapped.name
+              {
+                inherit (finefileUnwrapped) meta name version;
+
+                nativeBuildInputs = [ makeWrapper ];
+              }
+              ''
+                mkdir -p $out/bin
+                makeWrapper ${finefileUnwrapped}/bin/finefile $out/bin/finefile \
+                  --prefix PATH : ${lib.makeBinPath runtimePaths} \
+                  --set-default FINEFILE_SCHEMA ${finefileUnwrapped}/share/finefile/finefile.toml.latest.schema.json
+              '';
+        in
+        {
           default = finefileWrapped;
           finefile = finefileWrapped;
           finefile-unwrapped = finefileUnwrapped;
-        };
-      }
-    );
+        }
+      );
+    };
 }
