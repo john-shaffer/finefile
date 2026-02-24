@@ -7,6 +7,10 @@
       inputs.nixpkgs.follows = "nixpkgs";
       url = "github:jlesquembre/clj-nix";
     };
+    healthy = {
+      inputs.nixpkgs.follows = "nixpkgs";
+      url = "github:john-shaffer/healthy";
+    };
     hyperfine-flake = {
       inputs.nixpkgs.follows = "nixpkgs";
       url = "github:john-shaffer/hyperfine-flake";
@@ -54,10 +58,12 @@
                 (clojure.overrideAttrs { jdk = getJdk pkgs; })
                 deps-lock
                 fd
+                inputs.healthy.packages.${system}.default
                 jsonfmt
                 just
                 nixfmt
                 omnix
+                siege
               ]
               ++ getRuntimePaths system pkgs;
             shellHook = ''

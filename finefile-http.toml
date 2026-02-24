@@ -1,0 +1,16 @@
+[defaults.commands]
+export-json = "bench-http.json"
+shell = "none"
+timeout-seconds = 60
+warmup-runs = 3
+
+[commands.finefile-http-bench]
+alpha.http = { concurrency = 64, requests = 10000, url = "http://127.0.0.1:1234" }
+runs = 10
+
+[commands.siege]
+command = "siege --benchmark --no-parser -c 100 -r 100 http://127.0.0.1:1234"
+
+[plots.whisker]
+file = "plot-whisker.png"
+type = "whisker"

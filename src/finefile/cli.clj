@@ -7,6 +7,7 @@
    [clojure.string :as str]
    [clojure.tools.cli :refer [parse-opts]]
    [finefile.core :as core]
+   [finefile.http.bench :as http-bench]
    [toml-clj.core :as toml])
   (:gen-class))
 
@@ -230,6 +231,8 @@
             cmd-dir (str (fs/path base-dir (or dir ".")))
             env (some->> (get command "env")
                   (map (fn [[k v]] [k (str v)])))
+            http-opts (get-in command ["alpha" "http"])
+            {:strs [url]} http-opts
             shell (get command "shell")
             fut
             (future
@@ -246,6 +249,8 @@
               ; We might not have any arg-seq if none of the steps
               ; were selected to be run.
               (when (seq arg-seq)
+                (when url
+                  (throw (ex-info "Can't have both command and http" {})))
                 (apply interruptible-exec
                   {:dir cmd-dir
                    :env env
@@ -253,7 +258,14 @@
                    :out :inherit}
                   "hyperfine"
                   (concat arg-seq
-                    ["--export-json" (str export-file)]))))
+                    ["--export-json" (str export-file)])))
+              (when url
+                (let [{:strs [concurrency requests]} http-opts]
+                  (http-bench/bench k
+                    command
+                    {:concurrency concurrency
+                     :requests requests
+                     :url url}))))
             result (if timeout-seconds
                      (deref fut (* 1000 timeout-seconds) :not-found)
                      (deref fut))]
@@ -263,9 +275,11 @@
             (println k "benchmark timed out after" timeout-seconds "seconds")
             (assoc cmd :status "failed"))
           (assoc cmd
-            :result-map (when (seq arg-seq)
-                          (with-open [rdr (-> export-file fs/file io/reader)]
-                            (core/read-bench-json rdr)))
+            :result-map (if (seq result)
+                          {"results" [result]}
+                          (when (seq arg-seq)
+                            (with-open [rdr (-> export-file fs/file io/reader)]
+                              (core/read-bench-json rdr))))
             :status "succeeded"))))
     cmds))
 

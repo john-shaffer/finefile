@@ -113,6 +113,16 @@
       "hash": "sha256-wecUDR3qj981KLwePFRErAtUEpcxH0X5gGwhPsPumhA="
     },
     {
+      "mvn-path": "hato/hato/1.0.0/hato-1.0.0.jar",
+      "mvn-repo": "https://repo.clojars.org/",
+      "hash": "sha256-a2Wo9hRexXewFcv6NwPC0A9en5ZLxvyntx38VqT/4Ck="
+    },
+    {
+      "mvn-path": "hato/hato/1.0.0/hato-1.0.0.pom",
+      "mvn-repo": "https://repo.clojars.org/",
+      "hash": "sha256-W+fC5COu0mBlLqo8AusRzL9naXA6Y2x3NnfVZAQ/ECk="
+    },
+    {
       "mvn-path": "io/github/tonsky/toml-clj/0.1.0/toml-clj-0.1.0.jar",
       "mvn-repo": "https://repo.clojars.org/",
       "hash": "sha256-oFhs2KnCXAYP68SzT77eTsrViKqKAxugnj92CVxTwyU="
