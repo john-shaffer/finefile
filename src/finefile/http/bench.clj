@@ -5,6 +5,20 @@
   (:import
    (java.util.concurrent Executors Semaphore)))
 
+(defn- format-time [seconds]
+  (cond
+    (>= seconds 1.0) (format "%.3f s" seconds)
+    (>= seconds 0.001) (format "%.1f ms" (* 1000.0 seconds))
+    :else (format "%.1f µs" (* 1000000.0 seconds))))
+
+(defn- print-stats [{:strs [mean stddev min max]} runs]
+  (if stddev
+    (println (format "  Time (mean ± σ):     %s ± %s"
+               (format-time mean) (format-time stddev)))
+    (println (format "  Time (mean):         %s" (format-time mean))))
+  (println (format "  Range (min … max):   %s … %s    %d runs"
+             (format-time min) (format-time max) runs)))
+
 (defn bench
   [command-name
    {:strs [runs warmup-runs]}
@@ -33,6 +47,7 @@
                             (slurp body))
                           (finally
                             (.release semaphore))))))))]
+    (println (str "Benchmark: " command-name))
     (dotimes [_ warmup-runs]
       (run-f (Executors/newVirtualThreadPerTaskExecutor)))
     (dotimes [i runs]
@@ -40,7 +55,10 @@
             start (System/nanoTime)]
         (run-f executor)
         (aset times i (* 0.000000001 (- (System/nanoTime) start)))))
-    (merge (stats/time-stats times)
-      {"command" command-name
-       "exit_codes" exit-codes
-       "times" times})))
+    (let [result (merge (stats/time-stats times)
+                   {"command" command-name
+                    "exit_codes" exit-codes
+                    "times" times})]
+      (print-stats result runs)
+      result)
+    (println)))
