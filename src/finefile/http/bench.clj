@@ -3,7 +3,7 @@
    [finefile.stats :as stats]
    [hato.client :as hc])
   (:import
-   (java.util.concurrent Executors Semaphore)))
+   (java.util.concurrent ExecutorService Executors Semaphore)))
 
 (set! *warn-on-reflection* true)
 
@@ -49,7 +49,7 @@
                      (swap! urls-atom
                        (fn [[_ url-seq]]
                          [(first url-seq) (rest url-seq)]))))
-        run-f (fn [executor]
+        run-f (fn [^ExecutorService executor]
                 (with-open [executor executor]
                   (dotimes [_ requests]
                     (.execute executor

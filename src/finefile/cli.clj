@@ -9,6 +9,8 @@
    [finefile.core :as core]
    [finefile.http.bench :as http-bench]
    [toml-clj.core :as toml])
+  (:import
+   (java.lang ProcessHandle))
   (:gen-class))
 
 (set! *warn-on-reflection* true)
@@ -213,7 +215,7 @@
     (hash-map "results")))
 
 (defn- destroy-process-tree [^Process p]
-  (doseq [handle (-> p .toHandle .descendants .iterator iterator-seq)]
+  (doseq [^ProcessHandle handle (-> p .toHandle .descendants .iterator iterator-seq)]
     (.destroy handle)))
 
 (defn- interruptible-exec [opts & args]
