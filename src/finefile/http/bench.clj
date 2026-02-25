@@ -5,6 +5,9 @@
   (:import
    (java.util.concurrent Executors Semaphore)))
 
+(defn http-command? [command]
+  (boolean (seq (get-in command ["alpha" "http" "urls"]))))
+
 (defn- format-time [seconds]
   (cond
     (>= seconds 1.0) (format "%.3f s" seconds)
@@ -21,9 +24,9 @@
 
 (defn bench
   [command-name
-   {:strs [runs warmup-runs]}
-   {:keys [concurrency requests url-prefix urls]}]
-  (let [semaphore (Semaphore. concurrency)
+   {:strs [alpha runs warmup-runs]}]
+  (let [{:strs [concurrency requests url-prefix urls]} (get alpha "http")
+        semaphore (Semaphore. concurrency)
         exit-codes (int-array runs)
         times (double-array runs)
         http-client (hc/build-http-client
