@@ -16,7 +16,8 @@
                (catch InterruptedException e
                  (destroy-process-tree p)
                  (throw e)))]
-    (when-not (zero? exit)
+    (if (zero? exit)
+      p
       (throw (RuntimeException. (str "Process failed with exit=" exit))))))
 
 (defn command-env [command]
