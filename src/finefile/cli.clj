@@ -8,9 +8,8 @@
    [clojure.tools.cli :refer [parse-opts]]
    [finefile.core :as core]
    [finefile.http.bench :as http-bench]
+   [finefile.util :as u]
    [toml-clj.core :as toml])
-  (:import
-   (java.lang ProcessHandle))
   (:gen-class))
 
 (set! *warn-on-reflection* true)
@@ -214,19 +213,6 @@
     (reduce into [])
     (hash-map "results")))
 
-(defn- destroy-process-tree [^Process p]
-  (doseq [^ProcessHandle handle (-> p .toHandle .descendants .iterator iterator-seq)]
-    (.destroy handle)))
-
-(defn- interruptible-exec [opts & args]
-  (let [p (apply p/start opts args)
-        exit (try (-> p p/exit-ref deref)
-               (catch InterruptedException e
-                 (destroy-process-tree p)
-                 (throw e)))]
-    (when-not (zero? exit)
-      (throw (RuntimeException. (str "Process failed with exit=" exit))))))
-
 (defn bench-cmds [{:keys [base-dir cmds steps]}]
   (keep
     (fn [cmd]
@@ -239,7 +225,7 @@
             fut
             (future
               (when (and (steps "setup") (seq setup))
-                (apply interruptible-exec
+                (apply u/interruptible-exec
                   {:dir cmd-dir
                    :env env
                    :err :inherit
@@ -253,7 +239,7 @@
               (when (seq arg-seq)
                 (when (http-bench/http-command? command)
                   (throw (ex-info "Can't have both command and http" {})))
-                (apply interruptible-exec
+                (apply u/interruptible-exec
                   {:dir cmd-dir
                    :env env
                    :err :inherit
