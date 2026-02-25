@@ -10,6 +10,11 @@ alpha.http = { concurrency = 64, requests = 10000, urls = [
 ] }
 runs = 10
 
+[commands.finefile-http-bench-command]
+alpha.http = { concurrency = 64, requests = 10000, url-prefix = "http://127.0.0.1", urls-command = "echo :1234" }
+runs = 10
+shell = "bash"
+
 [commands.finefile-http-bench-prefixed]
 alpha.http = { concurrency = 64, requests = 10000, url-prefix = "http://127.0.0.1", urls = [
   ":1234",

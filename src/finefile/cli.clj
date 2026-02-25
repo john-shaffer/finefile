@@ -247,7 +247,7 @@
                   (concat arg-seq
                     ["--export-json" (str export-file)])))
               (when (http-bench/http-command? command)
-                (http-bench/bench k command)))
+                (http-bench/bench base-dir k command)))
             result (if timeout-seconds
                      (deref fut (* 1000 timeout-seconds) :not-found)
                      (deref fut))]
