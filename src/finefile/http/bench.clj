@@ -60,5 +60,5 @@
                     "exit_codes" exit-codes
                     "times" times})]
       (print-stats result runs)
-      result)
-    (println)))
+      (println)
+      result)))
