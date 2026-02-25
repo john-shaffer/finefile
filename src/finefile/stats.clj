@@ -2,6 +2,8 @@
   (:import
    (java.util Arrays)))
 
+(set! *warn-on-reflection* true)
+
 (defn- kahan-sum
   "Computes the sum of an array of doubles using the Kahan summation algorithm.
 

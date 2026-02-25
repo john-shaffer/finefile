@@ -2,6 +2,8 @@
   (:require
    [clojure.data.json :as json]))
 
+(set! *warn-on-reflection* true)
+
 (defn command->hyperfine-args
   [k command {:keys [steps]}]
   (let [{:strs [cleanup conclude command max-runs min-runs prepare

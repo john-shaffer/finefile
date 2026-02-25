@@ -11,6 +11,8 @@
    [toml-clj.core :as toml])
   (:gen-class))
 
+(set! *warn-on-reflection* true)
+
 (def ^:const BIN-NAME "finefile")
 (def ^:const BIN-VERSION "0.1.0")
 

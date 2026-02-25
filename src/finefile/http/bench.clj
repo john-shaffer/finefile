@@ -5,6 +5,8 @@
   (:import
    (java.util.concurrent Executors Semaphore)))
 
+(set! *warn-on-reflection* true)
+
 (defn http-command? [command]
   (boolean (seq (get-in command ["alpha" "http" "urls"]))))
 
