@@ -89,8 +89,13 @@
                 jdk = jdkPackage;
                 main-ns = "finefile.cli";
                 name = "finefile";
-                nativeImage.enable = true;
-                nativeImage.graalvm = graalvmPackages.graalvm-ce;
+                nativeImage = {
+                  enable = true;
+                  extraNativeImageBuildArgs = [
+                    "--enable-url-protocols=http,https"
+                  ];
+                  graalvm = graalvmPackages.graalvm-ce;
+                };
                 projectSrc = finefileSrc;
                 version = "0.1.0";
               }
