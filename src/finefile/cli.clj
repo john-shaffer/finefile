@@ -219,9 +219,8 @@
       (let [{:keys [arg-seq command export-file k]} cmd
             {:strs [dir setup timeout-seconds]} command
             cmd-dir (str (fs/path base-dir (or dir ".")))
-            env (some->> (get command "env")
-                  (map (fn [[k v]] [k (str v)])))
-            shell (get command "shell")
+            env (u/command-env command)
+            shell (u/command-shell command)
             fut
             (future
               (when (and (steps "setup") (seq setup))
@@ -231,7 +230,7 @@
                    :err :inherit
                    :out :discard}
                   (concat
-                    (when (and shell (not= "none" shell))
+                    (when shell
                       [shell "-c"])
                     [setup])))
               ; We might not have any arg-seq if none of the steps

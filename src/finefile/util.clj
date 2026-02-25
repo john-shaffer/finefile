@@ -18,3 +18,12 @@
                  (throw e)))]
     (when-not (zero? exit)
       (throw (RuntimeException. (str "Process failed with exit=" exit))))))
+
+(defn command-env [command]
+  (some->> (get command "env")
+    (map (fn [[k v]] [k (str v)]))))
+
+(defn command-shell [command]
+  (let [shell (get command "shell")]
+    (when (not= "none" shell)
+      shell)))
