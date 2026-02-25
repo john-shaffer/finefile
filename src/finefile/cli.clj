@@ -232,7 +232,7 @@
             env (some->> (get command "env")
                   (map (fn [[k v]] [k (str v)])))
             http-opts (get-in command ["alpha" "http"])
-            {:strs [url]} http-opts
+            {:strs [url-prefix urls]} http-opts
             shell (get command "shell")
             fut
             (future
@@ -249,7 +249,7 @@
               ; We might not have any arg-seq if none of the steps
               ; were selected to be run.
               (when (seq arg-seq)
-                (when url
+                (when (seq urls)
                   (throw (ex-info "Can't have both command and http" {})))
                 (apply interruptible-exec
                   {:dir cmd-dir
@@ -259,13 +259,14 @@
                   "hyperfine"
                   (concat arg-seq
                     ["--export-json" (str export-file)])))
-              (when url
+              (when (seq urls)
                 (let [{:strs [concurrency requests]} http-opts]
                   (http-bench/bench k
                     command
                     {:concurrency concurrency
                      :requests requests
-                     :url url}))))
+                     :url-prefix url-prefix
+                     :urls urls}))))
             result (if timeout-seconds
                      (deref fut (* 1000 timeout-seconds) :not-found)
                      (deref fut))]

@@ -5,7 +5,15 @@ timeout-seconds = 60
 warmup-runs = 3
 
 [commands.finefile-http-bench]
-alpha.http = { concurrency = 64, requests = 10000, url = "http://127.0.0.1:1234" }
+alpha.http = { concurrency = 64, requests = 10000, urls = [
+  "http://127.0.0.1:1234",
+] }
+runs = 10
+
+[commands.finefile-http-bench-prefixed]
+alpha.http = { concurrency = 64, requests = 10000, url-prefix = "http://127.0.0.1", urls = [
+  ":1234",
+] }
 runs = 10
 
 [commands.siege]

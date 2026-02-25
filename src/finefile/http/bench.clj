@@ -22,7 +22,7 @@
 (defn bench
   [command-name
    {:strs [runs warmup-runs]}
-   {:keys [concurrency requests url]}]
+   {:keys [concurrency requests url-prefix urls]}]
   (let [semaphore (Semaphore. concurrency)
         exit-codes (int-array runs)
         times (double-array runs)
@@ -34,8 +34,16 @@
                      :http-client http-client
                      :method :get
                      :throw-exceptions? false
-                     :timeout 30000
-                     :url url}
+                     :timeout 30000}
+        urls (if (seq url-prefix)
+               (mapv (partial str url-prefix) urls)
+               urls)
+        urls-atom (atom [nil (cycle urls)])
+        pop-url! (fn []
+                   (first
+                     (swap! urls-atom
+                       (fn [[_ url-seq]]
+                         [(first url-seq) (rest url-seq)]))))
         run-f (fn [executor]
                 (with-open [executor executor]
                   (dotimes [_ requests]
@@ -43,7 +51,8 @@
                       (fn []
                         (.acquire semaphore)
                         (try
-                          (let [{:keys [body]} (hc/request request-map)]
+                          (let [request-map (assoc request-map :url (pop-url!))
+                                {:keys [body]} (hc/request request-map)]
                             (slurp body))
                           (finally
                             (.release semaphore))))))))]
