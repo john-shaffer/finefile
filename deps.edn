@@ -1,11 +1,11 @@
 {:paths ["src"]
  :deps
  {org.clojure/clojure {:mvn/version "1.12.4"}
-  babashka/fs {:mvn/version "0.5.31"}
+  babashka/fs {:mvn/version "0.5.32"}
   hato/hato {:mvn/version "1.0.0"}
   io.github.tonsky/toml-clj {:mvn/version "0.1.0"}
   org.clojure/data.json {:mvn/version "2.5.2"}
-  org.clojure/tools.cli {:mvn/version "1.3.250"}}
+  org.clojure/tools.cli {:mvn/version "1.4.256"}}
  :aliases
  {:antq
   {:deps
