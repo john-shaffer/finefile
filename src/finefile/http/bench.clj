@@ -10,7 +10,8 @@
    (java.net URI)
    (java.net.http HttpClient HttpClient$Redirect HttpClient$Version HttpRequest HttpResponse$BodyHandlers)
    (java.time Duration)
-   (java.util.concurrent ExecutorService Executors Semaphore)))
+   (java.util.concurrent ExecutorService Executors Semaphore)
+   (java.util.concurrent.atomic AtomicLong)))
 
 (set! *warn-on-reflection* true)
 
@@ -78,12 +79,10 @@
         urls (if (seq url-prefix)
                (mapv (partial str url-prefix) urls)
                urls)
-        urls-atom (atom [nil (cycle urls)])
-        pop-url! (fn []
-                   (first
-                     (swap! urls-atom
-                       (fn [[_ url-seq]]
-                         [(first url-seq) (rest url-seq)]))))
+        urls-arr  (object-array urls)
+        url-count (alength urls-arr)
+        url-idx   (AtomicLong. 0)
+        pop-url!  (fn [] (aget urls-arr (rem (.getAndIncrement url-idx) url-count)))
         run-f (fn [^ExecutorService executor]
                 (with-open [executor executor]
                   (dotimes [_ requests]
