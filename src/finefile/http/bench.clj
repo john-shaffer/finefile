@@ -5,9 +5,11 @@
    [clojure.java.process :as p]
    [clojure.string :as str]
    [finefile.stats :as stats]
-   [finefile.util :as u]
-   [hato.client :as hc])
+   [finefile.util :as u])
   (:import
+   (java.net URI)
+   (java.net.http HttpClient HttpClient$Redirect HttpClient$Version HttpRequest HttpResponse$BodyHandlers)
+   (java.time Duration)
    (java.util.concurrent ExecutorService Executors Semaphore)))
 
 (set! *warn-on-reflection* true)
@@ -38,15 +40,12 @@
         semaphore (Semaphore. concurrency)
         exit-codes (int-array runs)
         times (double-array runs)
-        http-client (hc/build-http-client
-                      {:connect-timeout 30000
-                       :redirect-policy :never
-                       :version :http-2})
-        request-map {:as :stream
-                     :http-client http-client
-                     :method :get
-                     :throw-exceptions? false
-                     :timeout 30000}
+        http-client (-> (HttpClient/newBuilder)
+                        (.connectTimeout (Duration/ofMillis 30000))
+                        (.followRedirects HttpClient$Redirect/NEVER)
+                        (.version HttpClient$Version/HTTP_2)
+                        (.build))
+        request-timeout (Duration/ofMillis 30000)
         urls (cond
                (seq urls)
                urls
@@ -92,9 +91,12 @@
                       (fn []
                         (.acquire semaphore)
                         (try
-                          (let [request-map (assoc request-map :url (pop-url!))
-                                {:keys [body]} (hc/request request-map)]
-                            (slurp body))
+                          (let [request (-> (HttpRequest/newBuilder)
+                                            (.uri (URI/create (pop-url!)))
+                                            (.timeout request-timeout)
+                                            (.GET)
+                                            (.build))]
+                            (.send http-client request (HttpResponse$BodyHandlers/discarding)))
                           (finally
                             (.release semaphore))))))))]
     (println (str "Benchmark: " command-name))
