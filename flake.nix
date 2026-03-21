@@ -101,6 +101,55 @@
               }
             ];
           };
+          finefileJvmBin = clj-nix.lib.mkCljApp {
+            inherit pkgs;
+            modules = [
+              {
+                jdk = jdkPackage;
+                main-ns = "finefile.cli";
+                name = "finefile";
+                projectSrc = finefileSrc;
+                version = "0.1.0";
+              }
+            ];
+          };
+          finefileAotCache = stdenv.mkDerivation {
+            name = "finefile-aot-cache";
+            dontUnpack = true;
+            buildPhase = ''
+              jar=$(grep -oE '/nix/store/[^ ]+\.jar' ${finefileJvmBin}/bin/finefile | head -1)
+              ${jdkPackage}/bin/java -XX:AOTMode=record -XX:AOTConfiguration=finefile.aotconf -jar "$jar" || true
+              ${jdkPackage}/bin/java -XX:AOTMode=create -XX:AOTConfiguration=finefile.aotconf -XX:AOTCache=finefile.aot -jar "$jar"
+            '';
+            installPhase = ''
+              mkdir -p $out
+              cp finefile.aot $out/finefile.aot
+            '';
+          };
+          finefileJvmUnwrapped = stdenv.mkDerivation {
+            inherit (finefileJvmBin) meta version;
+            name = "finefile-jvm";
+            phases = [ "installPhase" ];
+            installPhase = ''
+              mkdir -p $out/bin $out/share/finefile-jvm
+              cp ${finefileJvmBin}/bin/finefile $out/bin/finefile
+              cp ${finefileAotCache}/finefile.aot $out/share/finefile-jvm/finefile.aot
+              cp ${finefileSrc}/schema/finefile.toml.latest.schema.json $out/share/finefile-jvm
+            '';
+          };
+          finefileJvmWrapped =
+            runCommand "finefile-jvm"
+              {
+                inherit (finefileJvmUnwrapped) meta name version;
+                nativeBuildInputs = [ makeWrapper ];
+              }
+              ''
+                mkdir -p $out/bin
+                makeWrapper ${finefileJvmUnwrapped}/bin/finefile $out/bin/finefile \
+                  --prefix PATH : ${lib.makeBinPath runtimePaths} \
+                  --set-default FINEFILE_SCHEMA ${finefileJvmUnwrapped}/share/finefile-jvm/finefile.toml.latest.schema.json \
+                  --set-default JDK_JAVA_OPTIONS "-XX:AOTCache=${finefileJvmUnwrapped}/share/finefile-jvm/finefile.aot"
+              '';
           finefileUnwrapped = stdenv.mkDerivation {
             inherit (finefileBin) meta name version;
             phases = [ "installPhase" ];
@@ -129,6 +178,8 @@
         {
           default = finefileWrapped;
           finefile = finefileWrapped;
+          finefile-jvm = finefileJvmWrapped;
+          finefile-jvm-unwrapped = finefileJvmUnwrapped;
           finefile-unwrapped = finefileUnwrapped;
         }
       );
