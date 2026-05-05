@@ -2,6 +2,7 @@ repo_root := `pwd`
 
 alias b := build
 alias fmt := format
+alias t := test
 alias u := update
 
 [private]
@@ -17,6 +18,9 @@ bench *args: build
 build:
     nix build
 
+check:
+    nix flake check
+
 # Format source and then check for unfixable issues
 format:
     fd -e json -x jsonfmt -w
@@ -28,6 +32,9 @@ format:
 # Run finefile
 run *args:
     clojure -M -m finefile.cli {{ args }}
+
+test:
+    nix flake check
 
 # Update dependencies
 update: && update-deps-lock

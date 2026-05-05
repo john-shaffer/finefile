@@ -72,6 +72,14 @@
           };
         }
       );
+      checks = forAllSystems (
+        system: pkgs: {
+          smoke = pkgs.runCommand "finefile-smoke-test" { } ''
+            ${self.packages.${system}.finefile-unwrapped}/bin/finefile --help
+            touch $out
+          '';
+        }
+      );
       packages = forAllSystems (
         systems: pkgs:
         with pkgs;
