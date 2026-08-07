@@ -1,8 +1,6 @@
 (ns finefile.http.bench
   (:require
    [babashka.fs :as fs]
-   [clojure.java.io :as io]
-   [clojure.java.process :as p]
    [clojure.string :as str]
    [finefile.stats :as stats]
    [finefile.util :as u])
@@ -55,24 +53,15 @@
                (let [cmd-dir (str (fs/path base-dir (or dir ".")))
                      env (u/command-env command)
                      shell (u/command-shell command)
-                     p (apply u/interruptible-exec
-                         {:dir cmd-dir
-                          :env env
-                          :err :inherit
-                          :out :pipe}
-                         (concat
-                           (when shell
-                             [shell "-c"])
-                           [urls-command]))]
-                 (with-open [rdr (-> p p/stdout io/reader)]
-                   (->> rdr
-                     line-seq
-                     (keep
-                       (fn [s]
-                         (when-not (str/blank? s)
-                           (str/trim s))))
-                     ; Realize all values
-                     vec)))
+                     lines (apply u/exec-lines
+                             {:dir cmd-dir
+                              :env env
+                              :err :inherit}
+                             (concat
+                               (when shell
+                                 [shell "-c"])
+                               [urls-command]))]
+                 (into [] (keep #(when-not (str/blank? %) (str/trim %))) lines))
 
                :else (throw (ex-info (str "No urls or urls-command found for " (pr-str command-name))
                               {:command command})))

@@ -1,5 +1,6 @@
 (ns finefile.util
   (:require
+   [clojure.java.io :as io]
    [clojure.java.process :as p])
   (:import
    (java.lang ProcessHandle)))
@@ -10,14 +11,29 @@
   (doseq [^ProcessHandle handle (-> p .toHandle .descendants .iterator iterator-seq)]
     (.destroy handle)))
 
+(defn- await-exit [p]
+  (try @(p/exit-ref p)
+    (catch InterruptedException e
+      (destroy-process-tree p)
+      (throw e))))
+
 (defn interruptible-exec [opts & args]
   (let [p (apply p/start opts args)
-        exit (try (-> p p/exit-ref deref)
-               (catch InterruptedException e
-                 (destroy-process-tree p)
-                 (throw e)))]
+        exit (await-exit p)]
     (if (zero? exit)
       p
+      (throw (RuntimeException. (str "Process failed with exit=" exit))))))
+
+(defn exec-lines
+  "Starts a process with :out :pipe, drains stdout into a vector of lines,
+   then waits for exit. Returns the lines vector. Throws on non-zero exit."
+  [opts & args]
+  (let [p (apply p/start (assoc opts :out :pipe) args)
+        lines (with-open [rdr (-> p p/stdout io/reader)]
+                (vec (line-seq rdr)))
+        exit (await-exit p)]
+    (if (zero? exit)
+      lines
       (throw (RuntimeException. (str "Process failed with exit=" exit))))))
 
 (defn command-env [command]
