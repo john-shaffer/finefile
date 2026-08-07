@@ -74,6 +74,10 @@
       );
       checks = forAllSystems (
         system: pkgs: {
+          clj-tests = pkgs.runCommand "finefile-clj-tests" { } ''
+            ${self.packages.${system}.finefile-tests}/bin/finefile-tests
+            touch $out
+          '';
           smoke = pkgs.runCommand "finefile-smoke-test" { } ''
             ${self.packages.${system}.finefile-unwrapped}/bin/finefile --help
             touch $out
@@ -105,6 +109,31 @@
                   graalvm = graalvmPackages.graalvm-ce;
                 };
                 projectSrc = finefileSrc;
+                version = "0.1.0";
+              }
+            ];
+          };
+          testSrc =
+            let
+              depsEdn = builtins.readFile "${finefileSrc}/deps.edn";
+              patchedDepsEdn =
+                builtins.replaceStrings [ ":paths [\"src\"]" ] [ ":paths [\"src\" \"test\"]" ]
+                  depsEdn;
+              patchedDepsEdnFile = pkgs.writeText "deps.edn" patchedDepsEdn;
+            in
+            pkgs.runCommand "finefile-test-src" { } ''
+              cp -r ${finefileSrc} $out
+              chmod -R u+w $out
+              cp ${patchedDepsEdnFile} $out/deps.edn
+            '';
+          finefileTestBin = clj-nix.lib.mkCljApp {
+            inherit pkgs;
+            modules = [
+              {
+                jdk = jdkPackage;
+                main-ns = "finefile.test-runner";
+                name = "finefile-tests";
+                projectSrc = testSrc;
                 version = "0.1.0";
               }
             ];
@@ -188,6 +217,7 @@
           finefile = finefileWrapped;
           finefile-jvm = finefileJvmWrapped;
           finefile-jvm-unwrapped = finefileJvmUnwrapped;
+          finefile-tests = finefileTestBin;
           finefile-unwrapped = finefileUnwrapped;
         }
       );
