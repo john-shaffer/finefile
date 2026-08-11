@@ -191,7 +191,9 @@
     (cond->
       {"a" a
        "b" b
-       "batch_rounds" batch-size
+       ; The realized batch size, which the configured batch-rounds is only a
+       ; floor under once the round count grows.
+       "batch_size" batch-size
        "batches" batches
        "certainty" (:certainty opts)
        "credible_mass" credible-mass

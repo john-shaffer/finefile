@@ -272,7 +272,10 @@
           (is (= "abba" (get c "interleave")))
           (is (= 0.99 (get c "certainty")))
           (is (= 0.01 (get c "min_effect")))
-          (is (= 0.707 (get c "prior_scale"))))
+          (is (= 0.707 (get c "prior_scale")))
+          ; The realized batch size, 1 here because the fixture asserts its
+          ; rounds are independent.
+          (is (= 1 (get c "batch_size"))))
         (testing "and the evidence, as a log so that it cannot overflow"
           (is (Double/isFinite (double (get c "log_bf10"))))
           ; The stopping rule runs on p_practical. The point-null p_different
