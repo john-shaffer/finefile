@@ -7,8 +7,12 @@
    direction, so an obvious difference costs only a handful of rounds while an
    ambiguous one keeps collecting evidence until it runs out of time.
 
-   See finefile.stats/jzs-log-bf10 for why stopping on a threshold that is
-   checked after every round does not inflate the error rate."
+   Checking a threshold after every round is motivated by the martingale
+   property of the point-null Bayes factor (see finefile.stats/jzs-log-bf10).
+   That property is exact for the Bayes factor over independent rounds; here
+   the rounds are re-batched as they accumulate and the default rule stops on
+   a posterior tail probability, so the error-rate guarantee is approximate -
+   the batching test pins the empirical false-positive rate near nominal."
   (:require
    [finefile.http.bench :as http-bench]
    [finefile.stats :as stats]

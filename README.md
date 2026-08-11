@@ -84,10 +84,15 @@ point null accumulates as the square root of the round count, so ruling a
 difference *out* takes on the order of ten thousand rounds, where a 1% margin
 takes a handful.
 
-Because the nuisance prior is the right-Haar prior, the Bayes factor is a test
-martingale under the null. Checking it after every round therefore costs
-nothing in error rate — Ville's inequality bounds the probability that it ever
-crosses `K` at `1/K` — so there is no need to fix a sample size in advance.
+Checking after every round instead of fixing a sample size in advance rests on
+a martingale argument: because the nuisance prior is the right-Haar prior, the
+point-null Bayes factor over independent observations is a test martingale
+under the null, and Ville's inequality bounds the probability that it ever
+crosses `K` at `1/K`. That bound is exact for `min-effect = 0` with batching
+off. The defaults re-batch the rounds as they accumulate and stop on
+`P(> min-effect)` rather than the Bayes factor, so for them the guarantee is
+approximate — a test in the suite holds the empirical false-positive rate of
+the batched rule near its nominal 1%.
 
 ### Sizing a run
 

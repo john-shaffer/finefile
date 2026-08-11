@@ -178,10 +178,13 @@
    The nuisance parameters get the location-scale invariant prior
    p(mean, sd) ∝ 1/sd, and the standardized effect size gets a
    Cauchy(0, prior-scale) prior. Because the nuisance prior is the right-Haar
-   prior, the resulting Bayes factor is a test martingale under the null
-   hypothesis, so it can be inspected after every observation without
-   inflating the error rate: Ville's inequality bounds the probability that it
-   ever exceeds K at 1/K.
+   prior, the sequence of Bayes factors over a growing sample of independent
+   observations is a test martingale under the null hypothesis, so it can be
+   inspected after every observation without inflating the error rate:
+   Ville's inequality bounds the probability that it ever exceeds K at 1/K.
+   That guarantee is exact only for that setting; a caller that re-batches
+   the series between inspections or that stops on a posterior tail
+   probability instead (see finefile.compare) inherits it approximately.
 
    t is the t statistic and nu its degrees of freedom. n-eff is the effective
    sample size: n for a paired or one-sample test, and
