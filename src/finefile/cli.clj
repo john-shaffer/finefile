@@ -236,8 +236,6 @@
               ; We might not have any arg-seq if none of the steps
               ; were selected to be run.
               (when (seq arg-seq)
-                (when (http-bench/http-command? command)
-                  (throw (ex-info "Can't have both command and http" {})))
                 (apply u/interruptible-exec
                   {:dir cmd-dir
                    :env env
@@ -246,7 +244,7 @@
                   "hyperfine"
                   (concat arg-seq
                     ["--export-json" (str export-file)])))
-              (when (http-bench/http-command? command)
+              (when (and (steps "command") (http-bench/http-command? command))
                 (http-bench/bench base-dir k command)))
             [outcome result] (try
                                [:ok (if timeout-seconds
@@ -306,6 +304,12 @@
                  (map
                    (fn [[k command]]
                      (let [command (merge command-defaults command)
+                           _ (when (and (get command "command")
+                                     (http-bench/http-command? command))
+                               (throw (ex-info
+                                        (str "Command " (pr-str k)
+                                          " defines both command and alpha.http")
+                                        {:command-name k})))
                            command (if (steps "command")
                                      command
                                      ; If we're not running the actual command,
