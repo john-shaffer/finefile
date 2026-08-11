@@ -248,14 +248,28 @@
                     ["--export-json" (str export-file)])))
               (when (http-bench/http-command? command)
                 (http-bench/bench base-dir k command)))
-            result (if timeout-seconds
-                     (deref fut (* 1000 timeout-seconds) :not-found)
-                     (deref fut))]
-        (if (= :not-found result)
+            [outcome result] (try
+                               [:ok (if timeout-seconds
+                                      (deref fut (* 1000 timeout-seconds) :not-found)
+                                      (deref fut))]
+                               (catch Throwable t
+                                 ; deref wraps anything thrown by the future in
+                                 ; an ExecutionException.
+                                 [:error (or (ex-cause t) t)]))]
+        (cond
+          (= :error outcome)
+          (do
+            (future-cancel fut)
+            (println k "benchmark failed:" (ex-message result))
+            (assoc cmd :status "failed"))
+
+          (= :not-found result)
           (do
             (future-cancel fut)
             (println k "benchmark timed out after" timeout-seconds "seconds")
             (assoc cmd :status "failed"))
+
+          :else
           (assoc cmd
             :result-map (if (seq result)
                           {"results" [result]}
@@ -364,7 +378,12 @@
         {:keys [action exit-message ok?]} parsed-opts]
     (if exit-message
       (exit (if ok? 0 1) exit-message)
-      (case action
-        "bench" (bench parsed-opts)
-        "check" (check parsed-opts)
-        "format" (fmt parsed-opts)))))
+      (try
+        (case action
+          "bench" (bench parsed-opts)
+          "check" (check parsed-opts)
+          "format" (fmt parsed-opts))
+        (catch clojure.lang.ExceptionInfo e
+          (if (:debug (:options parsed-opts))
+            (throw e)
+            (exit 1 (ex-message e))))))))
