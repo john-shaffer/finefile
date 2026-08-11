@@ -52,6 +52,18 @@ that difference instead of inflating its variance, and running `b, a, a, b` on
 alternate rounds cancels what is left. Set `interleave = "alternate"` for `a, b`
 rounds, which cost half as many runs but are sensitive to drift.
 
+Interleaving does not make the rounds independent of each other, though. A
+machine drifts over seconds, so consecutive differences come out correlated —
+measured at lag one, around `+0.46` against a local server — and their sample
+standard deviation then understates the standard error of their mean by about
+half. Uncorrected, that is enough to report a 10% difference between a command
+and itself, confidently, within five rounds. So rounds are averaged into
+batches of at least `batch-rounds` (default 4, growing with the square root of
+the round count) before any inference, which is the usual batch-means
+estimator for a correlated series. That is why the round floor is 16 rather
+than a handful: the comparison needs enough batches to have a spread worth
+trusting.
+
 After every round finefile computes two posterior probabilities and prints
 both:
 
@@ -79,9 +91,23 @@ crosses `K` at `1/K` — so there is no need to fix a sample size in advance.
 
 ### Sizing a run
 
-You need `|t| ≈ 4` to reach 99%, so the rounds needed are roughly `(4s/Δ)²`,
-where `Δ` is the log of the true throughput ratio and `s` the round-to-round
-standard deviation of the paired difference. At `s = 2%`, a 10% difference
-stops at `min-rounds`; a 1% difference needs around 65 rounds. Prefer more
-rounds over more `requests` per run: lengthening a run does not shrink the
-round-to-round variance that the comparison is actually up against.
+You need `|t| ≈ 4` to reach 99%, so the batches needed are roughly `(4s/Δ)²`,
+where `Δ` is the log of the true throughput ratio and `s` the standard
+deviation of the batch means. Since batches grow with the square root of the
+round count, evidence accumulates with the square root of the rounds rather
+than linearly — which is what correlated observations are actually worth.
+Prefer more rounds over more `requests` per run: lengthening a run does not
+shrink the round-to-round variance that the comparison is up against.
+
+An inconclusive result is a real answer, not a failure. It means the credible
+interval never got small enough to fit inside `min-effect`, and the interval
+itself tells you how much noise the host has. If a comparison keeps timing out,
+either the difference you are chasing is smaller than the machine can resolve,
+or the machine needs to be quieter. Raising `min-effect` to something the host
+can actually measure is usually the honest fix.
+
+Batching handles drift on timescales shorter than a batch. Nothing here can
+rescue you from drift slower than the whole run — if the machine is steadily
+getting warmer for ten minutes, a ten-minute comparison cannot tell that apart
+from a real difference. Interleaving is what limits the damage, since both
+commands ride the same drift.
