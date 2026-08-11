@@ -221,7 +221,46 @@
     (+ (Math/log h) (log-sum-exp fs))))
 
 (def ^:private ^:const default-credible-mass 0.95)
+; A min-batch of one asserts that the observations are already independent and
+; turns batching off. Anything larger is a floor under a batch length that
+; otherwise grows with the square root of the observation count.
+(def ^:private ^:const default-min-batch 1)
 (def ^:private ^:const default-prior-scale 0.707)
+
+(defn- batch-means
+  "Averages consecutive observations into non-overlapping batches of size b,
+   returning nil if there are not enough for two batches.
+
+   Benchmark rounds are not independent. A machine drifts over seconds, so
+   consecutive differences come out correlated - measured at lag one, around
+   +0.46 against a local server - and the sample standard deviation then
+   understates the standard error of their mean by a factor of two or so. That
+   is the difference between an honest answer and a confident wrong one, since
+   a run of rounds that all drift the same way looks exactly like a real
+   effect.
+
+   Averaging blocks of rounds gives observations much closer to independent.
+   The block length grows with the square root of the round count, which is
+   the usual batch-means estimator for a correlated series: it keeps the
+   estimate consistent as the run gets longer without assuming any particular
+   correlation length up front."
+  ^doubles [^doubles A ^long b]
+  (let [n (alength A)
+        k (quot n b)]
+    (when (<= 2 k)
+      (let [out (double-array k)
+            ; Keep the most recent whole batches. The earliest rounds are the
+            ; least likely to have reached a steady state.
+            offset (- n (* k b))]
+        (dotimes [i k]
+          (let [start (+ offset (* i b))
+                sum (loop [j 0
+                           sum 0.0]
+                      (if (= j b)
+                        sum
+                        (recur (inc j) (+ sum (aget A (+ start j))))))]
+            (aset out i (double (/ sum b)))))
+        out))))
 
 ; A standard deviation of exactly zero means unbounded evidence. Capping the
 ; t statistic keeps every derived number finite and serializable.
@@ -238,22 +277,32 @@
 (defn paired-comparison
   "Analyzes a sequence of paired differences, e.g. of log throughput.
 
-   Returns nil for fewer than two pairs. Otherwise returns a map with:
+   The differences are grouped into batches first, so returns nil until there
+   are enough rounds for two of them. Otherwise returns a map with:
 
+     :batch-size  rounds averaged into each observation
+     :batches     number of observations the inference actually rests on
      :bf10        evidence for a difference over no difference
      :ci          credible interval for the mean difference
      :p-different posterior probability that the two rates differ at all,
                   with equal prior odds on the two hypotheses
      :p-practical posterior probability that they differ by more than
                   min-effect, present only when min-effect is positive
+     :rounds      number of differences supplied
 
    min-effect is given as a ratio, so 0.01 asks about a 1% difference."
-  [ds {:keys [credible-mass min-effect prior-scale]}]
-  (let [A (double-array ds)
-        n (alength A)]
-    (when (< 1 n)
+  [ds {:keys [credible-mass min-batch min-effect prior-scale]}]
+  (let [raw (double-array ds)
+        rounds (alength raw)
+        min-batch (long (or min-batch default-min-batch))
+        batch-size (if (<= min-batch 1)
+                     1
+                     (Math/max min-batch (long (Math/sqrt rounds))))
+        ^doubles A (batch-means raw batch-size)]
+    (when A
       (let [credible-mass (or credible-mass default-credible-mass)
             prior-scale (or prior-scale default-prior-scale)
+            n (alength A)
             nu (dec n)
             mean (/ (kahan-sum A) n)
             stddev (Math/sqrt (sample-variance A))
@@ -265,12 +314,14 @@
             log-bf10 (jzs-log-bf10 t n nu prior-scale)
             half-width (* se (t-quantile (- 1.0 (* 0.5 (- 1.0 credible-mass))) nu))]
         (cond->
-          {:bf10 (Math/exp log-bf10)
+          {:batch-size batch-size
+           :batches n
+           :bf10 (Math/exp log-bf10)
            :ci [(- mean half-width) (+ mean half-width)]
            :credible-mass credible-mass
            :log-bf10 log-bf10
            :mean mean
-           :n n
+           :rounds rounds
            ; Equal prior odds is the maximum entropy choice over the two
            ; hypotheses, which makes the posterior probability the logistic of
            ; the log Bayes factor.

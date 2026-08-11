@@ -28,7 +28,13 @@
 ; margin settles in a handful of rounds, so a margin is on by default and the
 ; point null is available by setting min-effect to zero.
 (def ^:private ^:const default-min-effect 0.01)
-(def ^:private ^:const default-min-rounds 5)
+
+; Rounds are averaged into batches before any inference, so the round floor is
+; whatever it takes to give the batch-means estimator enough batches to have a
+; usable spread. Two batches leave one degree of freedom, which is too heavy
+; tailed to conclude anything; four give a real answer.
+(def ^:private ^:const default-batch-rounds 4)
+(def ^:private ^:const default-min-rounds 16)
 (def ^:private ^:const default-prior-scale 0.707)
 (def ^:private ^:const default-warmup-runs 3)
 
@@ -49,10 +55,9 @@
                       ", got " (pr-str v))
              {:comparison cmp-name :key k :value v}))))
 
-(defn- check-at-least-two! [cmp-name k v]
-  ; A single round has no spread to estimate, so two is the floor.
-  (when-not (and (integer? v) (<= 2 (long v)))
-    (throw (ex-info (str k " must be an integer of at least 2 for "
+(defn- check-at-least! [cmp-name k floor v]
+  (when-not (and (integer? v) (<= (long floor) (long v)))
+    (throw (ex-info (str k " must be an integer of at least " floor " for "
                       (pr-str cmp-name) ", got " (pr-str v))
              {:comparison cmp-name :key k :value v}))))
 
@@ -145,7 +150,8 @@
           "")))))
 
 (defn- print-summary [a b outcome summary opts]
-  (let [{:keys [bf10 ci log-bf10 mean n p-different p-practical]} summary
+  (let [{:keys [batch-size batches bf10 ci log-bf10 mean p-different
+                p-practical rounds]} summary
         [lo hi] (mapv #(Math/exp (double %)) ci)
         ratio (Math/exp (double mean))]
     (println (format "  %s: %s"
@@ -157,12 +163,12 @@
                (describe-ratio a b ratio)))
     (println (format "  Throughput ratio %s/%s:  %.4f  [%.4f, %.4f] (%s credible)"
                a b ratio lo hi (format-percent (:credible-mass summary))))
-    (println (format "  P(different) %s   BF10 %s   after %d rounds"
+    (println (format "  P(different) %s   BF10 %s   after %d rounds (%d batches of %d)"
                (format-percent p-different)
                (if (Double/isFinite (double bf10))
                  (format "%.3g" bf10)
                  (format "e^%.0f" log-bf10))
-               n))
+               rounds batches batch-size))
     (when p-practical
       (println (format "  P(difference exceeds %s) %s"
                  (format-percent (:min-effect opts)) (format-percent p-practical))))))
@@ -175,12 +181,14 @@
        "times" times})))
 
 (defn- comparison-result [cmp-name a b outcome summary ds ps opts]
-  (let [{:keys [bf10 ci credible-mass log-bf10 mean n p-different p-practical
-                prior-scale stddev]} summary
+  (let [{:keys [batch-size batches bf10 ci credible-mass log-bf10 mean
+                p-different p-practical prior-scale rounds stddev]} summary
         [lo hi] ci]
     (cond->
       {"a" a
        "b" b
+       "batch_rounds" batch-size
+       "batches" batches
        "certainty" (:certainty opts)
        "credible_mass" credible-mass
        "interleave" (:interleave opts)
@@ -195,7 +203,7 @@
        "p_different" p-different
        "p_different_by_round" (double-array ps)
        "prior_scale" prior-scale
-       "rounds" n
+       "rounds" rounds
        "throughput_ratio" (Math/exp (double mean))
        "throughput_ratio_ci" [(Math/exp (double lo)) (Math/exp (double hi))]
        "verdict" (name outcome)}
@@ -212,11 +220,16 @@
   (let [opts {:certainty (or (get cmp "certainty") default-certainty)
               :credible-mass (or (get cmp "credible-mass") default-credible-mass)
               :interleave (or (get cmp "interleave") default-interleave)
+              :min-batch (or (get cmp "batch-rounds") default-batch-rounds)
               :min-effect (or (get cmp "min-effect") default-min-effect)
               :prior-scale (or (get cmp "prior-scale") default-prior-scale)}
         {:keys [certainty interleave min-effect prior-scale]} opts
+        batch-rounds (or (get cmp "batch-rounds") default-batch-rounds)
         max-rounds (or (get cmp "max-rounds") default-max-rounds)
-        min-rounds (or (get cmp "min-rounds") default-min-rounds)
+        ; Nothing can be concluded before there are two batches, so the floor
+        ; on rounds follows from the batch size.
+        round-floor (* 2 (max 1 (if (integer? batch-rounds) (long batch-rounds) 1)))
+        min-rounds (or (get cmp "min-rounds") (max default-min-rounds round-floor))
         timeout-seconds (get cmp "timeout-seconds")
         warmup-runs (or (get cmp "warmup-runs") default-warmup-runs)
         orders (interleave-orders interleave)
@@ -226,8 +239,9 @@
                      {:comparison cmp-name :value interleave})))
         _ (check-fraction! cmp-name "certainty" certainty)
         _ (check-fraction! cmp-name "credible-mass" (:credible-mass opts))
-        _ (check-at-least-two! cmp-name "min-rounds" min-rounds)
-        _ (check-at-least-two! cmp-name "max-rounds" max-rounds)
+        _ (check-at-least! cmp-name "batch-rounds" 1 batch-rounds)
+        _ (check-at-least! cmp-name "min-rounds" round-floor min-rounds)
+        _ (check-at-least! cmp-name "max-rounds" round-floor max-rounds)
         _ (when (< max-rounds min-rounds)
             (throw (ex-info (str "max-rounds must be at least min-rounds for "
                               (pr-str cmp-name))
@@ -276,8 +290,9 @@
               ps (conj ps (:p-different summary 0.5))
               runs (+ (count (get-in acc [:a :seconds]))
                      (count (get-in acc [:b :seconds])))
-              ; Round one has no spread yet, so it can never be the last one.
-              ; min-rounds and max-rounds are both at least 2.
+              ; There is no summary until enough rounds have accumulated to
+              ; fill two batches, and min-rounds and max-rounds are both at
+              ; least that, so a stop can never fire before one exists.
               outcome (when summary
                         (or (when (<= min-rounds round) (verdict summary opts))
                           (when (<= max-rounds round) :max-rounds)

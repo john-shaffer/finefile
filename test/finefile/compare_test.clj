@@ -8,7 +8,7 @@
    [finefile.test-server :as server]))
 
 (defn- summary [ds]
-  (stats/paired-comparison ds {}))
+  (stats/paired-comparison ds {:min-batch 1}))
 
 (deftest verdict-without-a-margin-uses-the-bayes-factor
   (testing "stops once the posterior clears the certainty threshold"
@@ -49,7 +49,7 @@
   (testing "noise well inside the margin settles the other way"
     (let [ds (map #(* 2.0e-3 (Math/cos (* 1.7 (double %)))) (range 8))]
       (is (= :indistinguishable
-            (cmp/verdict (stats/paired-comparison ds {:min-effect 0.01})
+            (cmp/verdict (stats/paired-comparison ds {:min-batch 1 :min-effect 0.01})
               {:certainty 0.99 :min-effect 0.01})))))
   (testing "but the point null alone cannot reach that conclusion"
     ; Evidence for a measure-zero hypothesis only grows as the square root of
@@ -86,7 +86,11 @@
   {"alpha" {"http" {"concurrency" 1 "requests" 2 "urls" [url]}}})
 
 (defn- comparison [m]
-  (merge {"a" "fast" "b" "slow" "max-rounds" 8 "min-rounds" 2 "warmup-runs" 0} m))
+  ; batch-rounds 1 keeps these tests to a handful of rounds. The batch floor
+  ; that a real comparison uses is covered by correlated-rounds-are-batched.
+  (merge {"a" "fast" "b" "slow" "batch-rounds" 1
+          "max-rounds" 8 "min-rounds" 2 "warmup-runs" 0}
+    m))
 
 (defn- run-compare! [cmp commands]
   (let [result (volatile! nil)
@@ -236,8 +240,12 @@
     (fails #"not an alpha.http command" {"b" "plain"})
     (fails #"certainty must be between" {"b" "fast" "certainty" 1.5})
     (fails #"credible-mass must be between" {"b" "fast" "credible-mass" 0.4})
+    (fails #"batch-rounds must be an integer of at least 1" {"b" "fast" "batch-rounds" 0})
     (fails #"min-rounds must be an integer of at least 2" {"b" "fast" "min-rounds" 1})
-    (fails #"max-rounds must be an integer of at least 2" {"b" "fast" "max-rounds" 0})
+    (fails #"max-rounds must be an integer of at least 2" {"b" "fast" "max-rounds" 1})
+    (testing "and the round floor follows the batch size"
+      (fails #"min-rounds must be an integer of at least 8"
+        {"b" "fast" "batch-rounds" 4 "min-rounds" 6}))
     (fails #"max-rounds must be at least min-rounds"
       {"b" "fast" "max-rounds" 2 "min-rounds" 5})
     (fails #"interleave must be one of" {"b" "fast" "interleave" "shuffle"})
@@ -266,10 +274,11 @@
           (is (= 0.01 (get c "min_effect")))
           (is (= 0.707 (get c "prior_scale"))))
         (testing "and the evidence, as a log so that it cannot overflow"
-          (is (pos? (get c "log_bf10")))
+          (is (Double/isFinite (double (get c "log_bf10"))))
           ; The stopping rule runs on p_practical. The point-null p_different
-          ; is the more conservative of the two and lags behind it.
-          (is (< 0.5 (get c "p_different")))
+          ; is the more conservative of the two and can still be undecided
+          ; here, so only the one that was stopped on is pinned down.
+          (is (<= 0.0 (get c "p_different") 1.0))
           (is (< 0.99 (get c "p_practical")))
           (is (= (get c "rounds") (count (get c "log_throughput_ratio_differences")))))
         (testing "every number survives the round trip as a finite number"
@@ -290,7 +299,7 @@
 (deftest an-overwhelming-bayes-factor-still-serializes
   ; bf10 itself overflows to infinity, which json/write-str would happily
   ; emit as an unparseable literal.
-  (let [{:keys [bf10 log-bf10]} (stats/paired-comparison (repeat 60 0.5) {})]
+  (let [{:keys [bf10 log-bf10]} (stats/paired-comparison (repeat 60 0.5) {:min-batch 1})]
     (is (Double/isInfinite bf10))
     (is (Double/isFinite log-bf10))
     (is (= {"log_bf10" log-bf10}

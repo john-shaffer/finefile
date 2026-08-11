@@ -44,7 +44,8 @@
   {"alpha" {"http" {"concurrency" 1 "requests" 2 "urls" [url]}}})
 
 (def ^:private quick-comparison
-  {"a" "x" "b" "y" "max-rounds" 2 "min-rounds" 2 "warmup-runs" 0})
+  {"a" "x" "b" "y" "batch-rounds" 1
+   "max-rounds" 2 "min-rounds" 2 "warmup-runs" 0})
 
 (deftest failed-comparison-is-reported
   (testing "a comparison that throws fails without stopping the others"

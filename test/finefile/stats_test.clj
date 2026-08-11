@@ -70,9 +70,10 @@
   (is (some? (stats/paired-comparison [0.1 0.2] {}))))
 
 (deftest paired-comparison-detects-a-clear-difference
-  (let [{:keys [ci mean n p-different]}
+  (let [{:keys [batches ci mean rounds p-different]}
         (stats/paired-comparison [0.10 0.11 0.09 0.12 0.10] {})]
-    (is (= 5 n))
+    (is (= 5 rounds))
+    (is (= 5 batches) "batching is off by default")
     (is (close? mean 0.104 1.0e-12))
     (is (< 0.99 p-different))
     (testing "and brackets the mean with a credible interval"
@@ -111,6 +112,67 @@
     (let [{:keys [p-different t]} (stats/paired-comparison (repeat 5 0.0) {})]
       (is (zero? t))
       (is (< p-different 0.5)))))
+
+(defn- correlated-series
+  "A zero-mean AR(1) series with unit standard deviation, scaled to the
+   round-to-round spread and lag-one correlation measured on a real http
+   comparison. Seeded, so the test cannot flake."
+  [n rho seed]
+  (let [state (atom (+ 12345 (* 7919 (long seed))))
+        ; A plain linear congruential generator, so the series does not depend
+        ; on the JDK's Random staying put.
+        next-uniform #(/ (double (swap! state (fn [s] (mod (+ (* 1664525 s) 1013904223)
+                                                        4294967296))))
+                        4294967296.0)]
+    (->> (reductions
+           (fn [prev _]
+             (+ (* rho prev)
+               (* (Math/sqrt (- 1.0 (* rho rho))) (- (next-uniform) 0.5) 3.464)))
+           0.0 (range n))
+      rest
+      (mapv #(* 0.1 %)))))
+
+(deftest batching-corrects-for-correlated-rounds
+  ;; Benchmark rounds drift, so consecutive differences come out correlated and
+  ;; the sample standard deviation understates the standard error of their
+  ;; mean. Left uncorrected, that made a real comparison of a command against
+  ;; itself report a difference of 10% or more in three runs out of three.
+  ;;
+  ;; Every series here has a true mean of zero, so calling one "different" is
+  ;; always wrong and the error rate should sit near the nominal 1%.
+  (let [reps 150
+        n 40
+        rho 0.46
+        serieses (mapv #(correlated-series n rho %) (range reps))
+        means (mapv #(/ (reduce + %) n) serieses)
+        ; The spread of the sample means across independent series is the
+        ; standard error those series actually have.
+        grand (/ (reduce + means) reps)
+        true-se (Math/sqrt (/ (reduce + (map #(let [d (- % grand)] (* d d)) means))
+                             (dec reps)))
+        analyze (fn [min-batch]
+                  (mapv #(stats/paired-comparison % {:min-batch min-batch
+                                                     :min-effect 0.01})
+                    serieses))
+        naive (analyze 1)
+        batched (analyze 4)
+        ; Each summary's own idea of the standard error of its mean.
+        claimed-se (fn [rs]
+                     (/ (reduce + (map #(/ (:stddev %) (Math/sqrt (:batches %))) rs))
+                       (count rs)))
+        wrong-rate (fn [rs] (/ (count (filter #(<= 0.99 (:p-practical %)) rs))
+                              (double reps)))]
+    (testing "the generated series have the intended correlation structure"
+      (is (= 40 (:batches (first naive))))
+      (is (= 6 (:batch-size (first batched)))))
+    (testing "ignoring the correlation understates the standard error badly"
+      (is (< (claimed-se naive) (* 0.75 true-se))))
+    (testing "batching recovers it"
+      (is (< (* 0.8 true-se) (claimed-se batched) (* 1.6 true-se))))
+    (testing "so the uncorrected rule calls several times as many different"
+      (is (< (* 2.0 (wrong-rate batched)) (wrong-rate naive))))
+    (testing "while the batched rule stays near its nominal 1%"
+      (is (< (wrong-rate batched) 0.03)))))
 
 (deftest time-stats-summarizes-runs
   (let [m (stats/time-stats (double-array [3.0 1.0 2.0 4.0]))]
