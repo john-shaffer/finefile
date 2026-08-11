@@ -100,11 +100,6 @@
         semaphore (Semaphore. concurrency)
         exit-codes (int-array runs)
         times (double-array runs)
-        http-client (-> (HttpClient/newBuilder)
-                        (.connectTimeout connect-timeout)
-                        (.followRedirects HttpClient$Redirect/NEVER)
-                        (.version HttpClient$Version/HTTP_2)
-                        (.build))
         ; Requests are immutable and reusable, so we build them all up front
         ; instead of parsing urls inside the timed loop.
         requests-arr (object-array (map (partial url->request command-name)
@@ -113,26 +108,31 @@
         request-idx (AtomicLong. 0)
         next-request (fn []
                        (aget requests-arr
-                         (rem (.getAndIncrement request-idx) request-ct)))
-        run-f (fn [^ExecutorService executor]
-                (with-open [executor executor]
-                  (dotimes [_ requests]
-                    (.execute executor
-                      (fn []
-                        (.acquire semaphore)
-                        (try
-                          (.send http-client ^HttpRequest (next-request)
-                            (HttpResponse$BodyHandlers/discarding))
-                          (finally
-                            (.release semaphore))))))))]
+                         (rem (.getAndIncrement request-idx) request-ct)))]
     (println (str "Benchmark: " command-name))
-    (dotimes [_ warmup-runs]
-      (run-f (Executors/newVirtualThreadPerTaskExecutor)))
-    (dotimes [i runs]
-      (let [executor (Executors/newVirtualThreadPerTaskExecutor)
-            start (System/nanoTime)]
-        (run-f executor)
-        (aset times i (* 0.000000001 (- (System/nanoTime) start)))))
+    (with-open [^HttpClient http-client (-> (HttpClient/newBuilder)
+                                            (.connectTimeout connect-timeout)
+                                            (.followRedirects HttpClient$Redirect/NEVER)
+                                            (.version HttpClient$Version/HTTP_2)
+                                            (.build))]
+      (let [run-f (fn [^ExecutorService executor]
+                    (with-open [executor executor]
+                      (dotimes [_ requests]
+                        (.execute executor
+                          (fn []
+                            (.acquire semaphore)
+                            (try
+                              (.send http-client ^HttpRequest (next-request)
+                                (HttpResponse$BodyHandlers/discarding))
+                              (finally
+                                (.release semaphore))))))))]
+        (dotimes [_ warmup-runs]
+          (run-f (Executors/newVirtualThreadPerTaskExecutor)))
+        (dotimes [i runs]
+          (let [executor (Executors/newVirtualThreadPerTaskExecutor)
+                start (System/nanoTime)]
+            (run-f executor)
+            (aset times i (* 0.000000001 (- (System/nanoTime) start)))))))
     (let [result (merge (stats/time-stats times)
                    {"command" command-name
                     "exit_codes" exit-codes
