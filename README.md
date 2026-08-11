@@ -29,15 +29,18 @@ timeout-seconds = 300
 ```
 $ finefile alpha.compare
 Compare: rewrite (a = baseline, b = candidate)
-  round   2 (  8 runs)   ratio 2.0082   P(different) 77.6%   P(> 1.0%) 100.0%
-  round   3 ( 12 runs)   ratio 2.0080   P(different) 98.3%   P(> 1.0%) 100.0%
-  round   4 ( 16 runs)   ratio 2.0091   P(different) 100.0%  P(> 1.0%) 100.0%
-  round   5 ( 20 runs)   ratio 1.9698   P(different) 99.9%   P(> 1.0%) 100.0%
-  Different: baseline is 97.0% faster than candidate
-  Throughput ratio baseline/candidate:  1.9698  [1.8619, 2.0839] (95.0% credible)
-  P(different) 99.9%   BF10 1.98e+03   after 5 rounds
+  round   8 ( 32 runs)   ratio 1.7686   P(different) 82.5%   P(> 1.0%) 100.0%
+  round   9 ( 36 runs)   ratio 1.7824   P(different) 77.5%   P(> 1.0%) 100.0%
+  round  10 ( 40 runs)   ratio 1.8069   P(different) 76.7%   P(> 1.0%) 100.0%
+  Different: baseline is 81.8% faster than candidate
+  Throughput ratio baseline/candidate:  1.8180  [1.7274, 1.9134] (95.0% credible)
+  P(different) 99.6%   BF10 262   after 16 rounds (4 batches of 4)
   P(difference exceeds 1.0%) 100.0%
 ```
+
+Progress lines begin once there are enough rounds to batch — round 8 with the
+defaults — and a long comparison prints only every tenth round; the stopping
+rule itself may not fire before round 16, for reasons covered below.
 
 Any failing status code or connection error stops a comparison, so a server
 that falls over is never quietly timed as if it were fast. Set
