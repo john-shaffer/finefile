@@ -94,11 +94,16 @@
       }
     },
     "defaults": {
-      "commands": {
-        "type": "object",
-        "description": "Default values used when a value is not set for commands.<name>",
-        "additionalProperties": {
-          "$ref": "#/definitions/command"
+      "type": "object",
+      "description": "Default values used when a value is not set for a command.",
+      "properties": {
+        "commands": {
+          "description": "Default values used when a value is not set for commands.<name>",
+          "allOf": [
+            {
+              "$ref": "#/definitions/command"
+            }
+          ]
         }
       }
     },
