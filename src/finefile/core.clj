@@ -53,6 +53,16 @@
                     (some-> include-tags (some (get command "tags")))))]
       [k command])))
 
+(defn select-comparisons [finefile-map opts]
+  (let [{:keys [exclude-comparisons include-comparisons]} opts]
+    (for [[k comparison] (get-in finefile-map ["alpha" "compare"])
+          :when (and
+                  (or (not exclude-comparisons)
+                    (not (exclude-comparisons k)))
+                  (or (not include-comparisons)
+                    (include-comparisons k)))]
+      [k comparison])))
+
 (def ^:private plot-types->script-bin-names
   {"histogram" "hyperfine-plot-histogram"
    "whisker" "hyperfine-plot-whisker"})

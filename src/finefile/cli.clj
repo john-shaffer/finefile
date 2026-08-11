@@ -6,6 +6,7 @@
    [clojure.java.process :as p]
    [clojure.string :as str]
    [clojure.tools.cli :refer [parse-opts]]
+   [finefile.compare :as cmp]
    [finefile.core :as core]
    [finefile.http.bench :as http-bench]
    [finefile.util :as u]
@@ -78,6 +79,24 @@
       :validate
       [#(boolean (some (partial = %) step-names))
        (str "Must be one of: " (str/join ", " step-names))]]]}
+   "alpha.compare"
+   {:description
+    "Determine whether two http benchmark commands actually differ."
+    :options
+    [["-f" "--file FILE" "Configuration file. Default: \"finefile.toml\". May be specified multiple times, in which case configuration will be merged. Values in later files override values in earlier files."
+      :id :config-files
+      :multi true
+      :update-fn (fnil conj [])]
+     ["-c" "--include-comparison NAME"
+      "Include a comparison by name. May be specified multiple times."
+      :id :include-comparisons
+      :multi true
+      :update-fn (fnil conj #{})]
+     ["-C" "--exclude-comparison NAME"
+      "Exclude a comparison by name. May be specified multiple times."
+      :id :exclude-comparisons
+      :multi true
+      :update-fn (fnil conj #{})]]}
    "check"
    {:description "Check syntax of a config file."
     :options
@@ -108,7 +127,7 @@
             (for [[k {:keys [description]}] cli-spec
                   :when k]
               (str "  " k
-                (subs "                  " 0 (- 12 (count k)))
+                (subs "                  " 0 (- 16 (count k)))
                 description))))))))
 
 (defn reorder-help-args
@@ -207,6 +226,30 @@
           (io/copy config-str stdin)))
       (System/exit @(p/exit-ref p)))))
 
+(defn config-files->base-dir [config-files]
+  (let [base-config (first config-files)]
+    (if (= "-" base-config)
+      (fs/cwd)
+      (fs/parent base-config))))
+
+(defn read-config
+  "Reads and merges config-files, checks each against the schema, and conforms
+   the result. Values in later files override values in earlier ones."
+  [config-files options]
+  (->> config-files
+    ; Ensure we only try to read each file once, particularly stdin
+    ; Keep the last copy of each filename since that one has merge precedence
+    reverse distinct reverse
+    (reduce
+      (fn [m fname]
+        (let [config-str (if (= "-" fname)
+                           (slurp *in*)
+                           (slurp fname))]
+          (check-config-str config-str options)
+          (deep-merge m (toml/read-string config-str))))
+      {})
+    core/conform-config))
+
 (defn merge-result-maps [result-maps]
   (->> result-maps
     (map #(get % "results"))
@@ -282,23 +325,8 @@
     (let [options (update options :steps #(or % (set step-names)))
           {:keys [config-files steps]} options
           config-files (or (seq config-files) ["finefile.toml"])
-          base-config (first config-files)
-          base-dir (if (= "-" base-config)
-                     (fs/cwd)
-                     (fs/parent base-config))
-          m (->> config-files
-              ; Ensure we only try to read each file once, particularly stdin
-              ; Keep the last copy of each filename since that one has merge precedence
-              reverse distinct reverse
-              (reduce
-                (fn [m fname]
-                  (let [config-str (if (= "-" fname)
-                                     (slurp *in*)
-                                     (slurp fname))]
-                    (check-config-str config-str options)
-                    (deep-merge m (toml/read-string config-str))))
-                {})
-              core/conform-config)
+          base-dir (config-files->base-dir config-files)
+          m (read-config config-files options)
           command-defaults (get-in m ["defaults" "commands"])
           cmds (->> (core/select-commands m options)
                  (map
@@ -350,6 +378,85 @@
         (System/exit 1)
         (System/exit 0)))))
 
+(defn- run-command-step! [base-dir k command step]
+  (when-let [cmd (get command step)]
+    (apply u/interruptible-exec
+      {:dir (str (fs/path base-dir (or (get command "dir") ".")))
+       :env (u/command-env command)
+       :err :inherit
+       :out :discard}
+      (concat
+        (when-let [shell (u/command-shell command)]
+          [shell "-c"])
+        [cmd]))
+    (println (format "  %s %s: done" k step))))
+
+(defn compare-comparisons
+  "Runs each selected comparison and returns a vector of
+   {:comparison, :k, :result-map, :status}.
+
+   A comparison that throws fails on its own without stopping the others, the
+   same way a failed benchmark does. The setup and cleanup of each compared
+   command run once around the whole comparison; prepare and conclude are not
+   applied, since a comparison drives its own runs rather than hyperfine's."
+  [{:keys [base-dir commands comparisons]}]
+  (mapv
+    (fn [[k comparison]]
+      (let [sides (distinct (keep #(get comparison %) ["a" "b"]))]
+        (try
+          (try
+            (doseq [side sides]
+              (run-command-step! base-dir side (get commands side) "setup"))
+            (assoc
+              {:comparison comparison :k k}
+              :result-map (cmp/compare! base-dir k comparison commands)
+              :status "succeeded")
+            (finally
+              (doseq [side sides]
+                (try
+                  (run-command-step! base-dir side (get commands side) "cleanup")
+                  (catch Throwable t
+                    (println k "cleanup failed:" (ex-message t)))))))
+          (catch Throwable t
+            (println k "comparison failed:" (ex-message t))
+            {:comparison comparison :k k :status "failed"}))))
+    comparisons))
+
+(defn merge-compare-maps [result-maps]
+  {"comparisons" (into [] (mapcat #(get % "comparisons")) result-maps)
+   "results" (into [] (mapcat #(get % "results")) result-maps)})
+
+(defn write-compare-exports!
+  "Writes each comparison's results to its export-json file, merging the
+   comparisons that share one."
+  [base-dir cmps]
+  (doseq [[export-json cmps] (group-by #(get (:comparison %) "export-json") cmps)
+          :when (seq export-json)
+          :let [results (->> cmps (keep :result-map) merge-compare-maps)]]
+    (with-open [w (io/writer (fs/file base-dir export-json))]
+      (json/write results w {:indent true}))))
+
+(defn compare-action [{:keys [options]}]
+  (let [{:keys [config-files]} options
+        config-files (or (seq config-files) ["finefile.toml"])
+        base-dir (config-files->base-dir config-files)
+        m (read-config config-files options)
+        command-defaults (get-in m ["defaults" "commands"])
+        commands (into {}
+                   (map (fn [[k command]] [k (merge command-defaults command)]))
+                   (get m "commands"))
+        comparisons (sort-by first (core/select-comparisons m options))
+        cmps (compare-comparisons
+               {:base-dir base-dir
+                :commands commands
+                :comparisons comparisons})]
+    (when (empty? comparisons)
+      (println "No comparisons to run. Define them under [alpha.compare.<name>]."))
+    (write-compare-exports! base-dir cmps)
+    (if (some #(not= "succeeded" (:status %)) cmps)
+      (System/exit 1)
+      (System/exit 0))))
+
 (defn check [{:keys [options]}]
   (let [{:keys [debug file]} options
         schema-file (get-schema-file)
@@ -385,6 +492,7 @@
       (try
         (case action
           "bench" (bench parsed-opts)
+          "alpha.compare" (compare-action parsed-opts)
           "check" (check parsed-opts)
           "format" (fmt parsed-opts))
         (catch clojure.lang.ExceptionInfo e
