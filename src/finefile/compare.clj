@@ -233,9 +233,11 @@
         batch-rounds (or (get cmp "batch-rounds") default-batch-rounds)
         max-rounds (or (get cmp "max-rounds") default-max-rounds)
         ; Nothing can be concluded before there are two batches, so the floor
-        ; on rounds follows from the batch size.
+        ; on rounds follows from the batch size. The default waits for four
+        ; batches, since two leave a single heavy-tailed degree of freedom.
         round-floor (* 2 (max 1 (if (integer? batch-rounds) (long batch-rounds) 1)))
-        min-rounds (or (get cmp "min-rounds") (max default-min-rounds round-floor))
+        min-rounds (or (get cmp "min-rounds")
+                     (max default-min-rounds (* 2 round-floor)))
         timeout-seconds (get cmp "timeout-seconds")
         warmup-runs (or (get cmp "warmup-runs") default-warmup-runs)
         orders (interleave-orders interleave)
