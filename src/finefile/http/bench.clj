@@ -13,6 +13,12 @@
 
 (set! *warn-on-reflection* true)
 
+(def ^:private ^:const default-concurrency 1)
+(def ^:private ^:const default-runs 10)
+
+(def ^:private connect-timeout (Duration/ofMillis 30000))
+(def ^:private request-timeout (Duration/ofMillis 30000))
+
 (defn http-command? [command]
   (let [{:strs [urls urls-command]} (get-in command ["alpha" "http"])]
     (boolean (or (seq urls) (seq urls-command)))))
@@ -31,20 +37,14 @@
   (println (format "  Range (min … max):   %s … %s    %d runs"
              (format-time min) (format-time max) runs)))
 
-(defn bench
-  [base-dir
-   command-name
-   {:as command :strs [alpha dir runs warmup-runs]}]
-  (let [{:strs [concurrency requests url-prefix urls urls-command]} (get alpha "http")
-        semaphore (Semaphore. concurrency)
-        exit-codes (int-array runs)
-        times (double-array runs)
-        http-client (-> (HttpClient/newBuilder)
-                        (.connectTimeout (Duration/ofMillis 30000))
-                        (.followRedirects HttpClient$Redirect/NEVER)
-                        (.version HttpClient$Version/HTTP_2)
-                        (.build))
-        request-timeout (Duration/ofMillis 30000)
+(defn- check-positive! [command-name k v]
+  (when-not (and (integer? v) (pos? v))
+    (throw (ex-info (str k " must be a positive integer for " (pr-str command-name)
+                      ", got " (pr-str v))
+             {:command-name command-name :key k :value v}))))
+
+(defn- resolve-urls [base-dir command-name {:as command :strs [alpha dir]}]
+  (let [{:strs [url-prefix urls urls-command]} (get alpha "http")
         urls (cond
                (seq urls)
                urls
@@ -67,11 +67,53 @@
                               {:command command})))
         urls (if (seq url-prefix)
                (mapv (partial str url-prefix) urls)
-               urls)
-        urls-arr  (object-array urls)
-        url-count (alength urls-arr)
-        url-idx   (AtomicLong. 0)
-        pop-url!  (fn [] (aget urls-arr (rem (.getAndIncrement url-idx) url-count)))
+               urls)]
+    (when (empty? urls)
+      (throw (ex-info (str "No urls to benchmark for " (pr-str command-name))
+               {:command command})))
+    urls))
+
+(defn- url->request [command-name url]
+  (try
+    (-> (HttpRequest/newBuilder)
+        (.uri (URI/create url))
+        (.timeout request-timeout)
+        (.GET)
+        (.build))
+    (catch Exception e
+      (throw (ex-info (str "Invalid url " (pr-str url) " for " (pr-str command-name)
+                        ": " (ex-message e))
+               {:command-name command-name :url url}
+               e)))))
+
+(defn bench
+  [base-dir
+   command-name
+   {:as command :strs [alpha runs warmup-runs]}]
+  (let [{:strs [concurrency requests]} (get alpha "http")
+        concurrency (or concurrency default-concurrency)
+        runs (or runs default-runs)
+        warmup-runs (or warmup-runs 0)
+        _ (check-positive! command-name "alpha.http.concurrency" concurrency)
+        _ (check-positive! command-name "alpha.http.requests" requests)
+        _ (check-positive! command-name "runs" runs)
+        semaphore (Semaphore. concurrency)
+        exit-codes (int-array runs)
+        times (double-array runs)
+        http-client (-> (HttpClient/newBuilder)
+                        (.connectTimeout connect-timeout)
+                        (.followRedirects HttpClient$Redirect/NEVER)
+                        (.version HttpClient$Version/HTTP_2)
+                        (.build))
+        ; Requests are immutable and reusable, so we build them all up front
+        ; instead of parsing urls inside the timed loop.
+        requests-arr (object-array (map (partial url->request command-name)
+                                     (resolve-urls base-dir command-name command)))
+        request-ct (alength requests-arr)
+        request-idx (AtomicLong. 0)
+        next-request (fn []
+                       (aget requests-arr
+                         (rem (.getAndIncrement request-idx) request-ct)))
         run-f (fn [^ExecutorService executor]
                 (with-open [executor executor]
                   (dotimes [_ requests]
@@ -79,12 +121,8 @@
                       (fn []
                         (.acquire semaphore)
                         (try
-                          (let [request (-> (HttpRequest/newBuilder)
-                                            (.uri (URI/create (pop-url!)))
-                                            (.timeout request-timeout)
-                                            (.GET)
-                                            (.build))]
-                            (.send http-client request (HttpResponse$BodyHandlers/discarding)))
+                          (.send http-client ^HttpRequest (next-request)
+                            (HttpResponse$BodyHandlers/discarding))
                           (finally
                             (.release semaphore))))))))]
     (println (str "Benchmark: " command-name))
