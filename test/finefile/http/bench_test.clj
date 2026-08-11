@@ -1,33 +1,8 @@
 (ns finefile.http.bench-test
   (:require
    [clojure.test :refer [deftest is testing]]
-   [finefile.http.bench :as bench])
-  (:import
-   (com.sun.net.httpserver HttpExchange HttpHandler HttpServer)
-   (java.net InetSocketAddress)
-   (java.util.concurrent Executors)
-   (java.util.concurrent.atomic AtomicLong)))
-
-(defn- with-server
-  "Starts an HTTP server on a random loopback port and calls (f base-url counter),
-   where counter is an AtomicLong of the requests received. The handler is called
-   with the request count (starting at 1) and must return a status code."
-  [handler f]
-  (let [counter (AtomicLong. 0)
-        server (HttpServer/create (InetSocketAddress. "127.0.0.1" 0) 0)]
-    (.createContext server "/"
-      (reify HttpHandler
-        (handle [_ exchange]
-          (let [^HttpExchange exchange exchange
-                status (handler (.incrementAndGet counter))]
-            (.sendResponseHeaders exchange status -1)
-            (.close exchange)))))
-    (.setExecutor server (Executors/newVirtualThreadPerTaskExecutor))
-    (.start server)
-    (try
-      (f (str "http://127.0.0.1:" (.getPort (.getAddress server))) counter)
-      (finally
-        (.stop server 0)))))
+   [finefile.http.bench :as bench]
+   [finefile.test-server :as server :refer [with-server]]))
 
 (defn- command [http]
   {"alpha" {"http" (merge {"concurrency" 4 "requests" 8} http)}
@@ -43,7 +18,7 @@
 
 (deftest successful-requests
   (testing "records one time per run and sends every request"
-    (with-server (constantly 200)
+    (with-server (fn [_ _] 200)
       (fn [url counter]
         (let [result (bench/bench "." "ok" (command {"urls" [url]}))]
           (is (= 2 (alength ^doubles (get result "times"))))
@@ -55,7 +30,7 @@
 
 (deftest urls-are-cycled
   (testing "requests cycle through every url"
-    (with-server (constantly 200)
+    (with-server (fn [_ _] 200)
       (fn [url counter]
         (bench/bench "." "cycle"
           (assoc (command {"urls" [(str url "/a") (str url "/b") (str url "/c")]
@@ -67,27 +42,27 @@
 
 (deftest unexpected-status-fails
   (testing "a non-2xx status fails the benchmark"
-    (with-server (constantly 500)
+    (with-server (fn [_ _] 500)
       (fn [url _]
         (is (thrown-with-msg? clojure.lang.ExceptionInfo #"requests failed"
               (bench/bench "." "server-error" (command {"urls" [url]}))))))))
 
 (deftest redirects-are-not-followed
   (testing "redirects are reported as failures rather than followed"
-    (with-server (constantly 302)
+    (with-server (fn [_ _] 302)
       (fn [url _]
         (is (thrown-with-msg? clojure.lang.ExceptionInfo #"requests failed"
               (bench/bench "." "redirect" (command {"urls" [url]}))))))))
 
 (deftest expected-status-is-honored
   (testing "a status listed in expected-status is a success"
-    (with-server (constantly 404)
+    (with-server (fn [_ _] 404)
       (fn [url _]
         (let [result (bench/bench "." "not-found"
                        (command {"expected-status" [404] "urls" [url]}))]
           (is (= [0 0] (vec (get result "exit_codes")))))))
     (testing "and any other status is a failure"
-      (with-server (constantly 200)
+      (with-server (fn [_ _] 200)
         (fn [url _]
           (is (thrown-with-msg? clojure.lang.ExceptionInfo #"requests failed"
                 (bench/bench "." "not-found"
@@ -95,7 +70,7 @@
 
 (deftest ignore-failure-records-exit-codes
   (testing "failures are recorded but do not abort the benchmark"
-    (with-server #(if (odd? %) 200 503)
+    (with-server (fn [_ n] (if (odd? n) 200 503))
       (fn [url _]
         (let [result (bench/bench "." "flaky"
                        (command {"ignore-failure" true "urls" [url]}))]
@@ -103,15 +78,14 @@
 
 (deftest connection-errors-fail
   (testing "requests that never get a response fail the benchmark"
-    ; Bind a port and immediately release it so that nothing is listening.
-    (let [port (with-server (constantly 200) (fn [url _] (last (re-find #":(\d+)$" url))))]
+    (let [port (server/free-port)]
       (is (thrown-with-msg? clojure.lang.ExceptionInfo #"requests failed"
             (bench/bench "." "refused"
               (command {"urls" [(str "http://127.0.0.1:" port)]})))))))
 
 (deftest urls-command-and-prefix
   (testing "urls are read from urls-command and prefixed with url-prefix"
-    (with-server (constantly 200)
+    (with-server (fn [_ _] 200)
       (fn [url counter]
         (let [port (last (re-find #":(\d+)$" url))]
           (bench/bench "." "from-command"

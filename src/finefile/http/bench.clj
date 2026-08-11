@@ -39,12 +39,6 @@
   (println (format "  Range (min … max):   %s … %s    %d runs"
              (format-time min) (format-time max) runs)))
 
-(defn- check-positive! [command-name k v]
-  (when-not (and (integer? v) (pos? v))
-    (throw (ex-info (str k " must be a positive integer for " (pr-str command-name)
-                      ", got " (pr-str v))
-             {:command-name command-name :key k :value v}))))
-
 (defn- status-ok-fn
   "Returns a predicate that is true for response status codes that count as a
    success. Any 2xx status is a success unless expected-status is given."
@@ -167,21 +161,20 @@
                {:command-name command-name :url url}
                e)))))
 
-(defn bench
-  [base-dir
-   command-name
-   {:as command :strs [alpha runs warmup-runs]}]
+(defn open-session
+  "Validates command and prepares everything needed to run timed batches of its
+   requests. Returns a session to pass to run-once!, which must be handed to
+   close-session! when finished.
+
+   Splitting this out lets a caller drive several commands at once, which is
+   what interleaving a comparison requires."
+  [base-dir command-name {:as command :strs [alpha]}]
   (let [{:strs [concurrency expected-status ignore-failure requests]} (get alpha "http")
         concurrency (or concurrency default-concurrency)
-        runs (or runs default-runs)
-        warmup-runs (or warmup-runs 0)
-        _ (check-positive! command-name "alpha.http.concurrency" concurrency)
-        _ (check-positive! command-name "alpha.http.requests" requests)
-        _ (check-positive! command-name "runs" runs)
+        _ (u/check-positive! command-name "alpha.http.concurrency" concurrency)
+        _ (u/check-positive! command-name "alpha.http.requests" requests)
         status-ok? (status-ok-fn expected-status)
         semaphore (Semaphore. concurrency)
-        exit-codes (int-array runs)
-        times (double-array runs)
         ; Requests are immutable and reusable, so we build them all up front
         ; instead of parsing urls inside the timed loop.
         requests-arr (object-array (map (partial url->request command-name)
@@ -190,39 +183,72 @@
         request-idx (AtomicLong. 0)
         next-request (fn []
                        (aget requests-arr
-                         (rem (.getAndIncrement request-idx) request-ct)))]
+                         (rem (.getAndIncrement request-idx) request-ct)))
+        ; Built last so that nothing between here and the return can throw and
+        ; leak the client.
+        http-client (-> (HttpClient/newBuilder)
+                        (.connectTimeout connect-timeout)
+                        (.followRedirects HttpClient$Redirect/NEVER)
+                        (.version HttpClient$Version/HTTP_2)
+                        (.build))]
+    {:command-name command-name
+     :http-client http-client
+     :ignore-failure ignore-failure
+     :requests requests
+     :run-requests! #(run-requests!
+                       {:http-client http-client
+                        :next-request next-request
+                        :requests requests
+                        :semaphore semaphore})
+     :status-ok? status-ok?}))
+
+(defn close-session! [{:keys [^HttpClient http-client]}]
+  (.close http-client))
+
+(defn run-once!
+  "Runs and times one batch of requests. Returns {:failures n, :seconds t}.
+
+   Throws when any request failed, unless alpha.http.ignore-failure is set, so
+   that a failing status code or a connection error stops the run instead of
+   being timed as if it were a success."
+  [{:keys [command-name ignore-failure requests run-requests! status-ok?]}]
+  (let [start (System/nanoTime)
+        result (run-requests!)
+        elapsed (- (System/nanoTime) start)
+        failures (failure-count result status-ok?)]
+    (when (pos? failures)
+      (println (format "  %d of %d requests failed" failures requests))
+      (print-failures result status-ok?)
+      (when-not ignore-failure
+        (throw (ex-info
+                 (format "%d of %d requests failed for %s"
+                   failures requests (pr-str command-name))
+                 {:command-name command-name
+                  :errors (:errors result)
+                  :statuses (:statuses result)}))))
+    {:failures failures
+     :seconds (* 0.000000001 elapsed)}))
+
+(defn bench
+  [base-dir
+   command-name
+   {:as command :strs [runs warmup-runs]}]
+  (let [runs (or runs default-runs)
+        warmup-runs (or warmup-runs 0)
+        _ (u/check-positive! command-name "runs" runs)
+        exit-codes (int-array runs)
+        times (double-array runs)
+        session (open-session base-dir command-name command)]
     (println (str "Benchmark: " command-name))
-    (with-open [^HttpClient http-client (-> (HttpClient/newBuilder)
-                                            (.connectTimeout connect-timeout)
-                                            (.followRedirects HttpClient$Redirect/NEVER)
-                                            (.version HttpClient$Version/HTTP_2)
-                                            (.build))]
-      (let [run! #(run-requests!
-                    {:http-client http-client
-                     :next-request next-request
-                     :requests requests
-                     :semaphore semaphore})
-            check-run! (fn [result]
-                         (let [failures (failure-count result status-ok?)]
-                           (when (pos? failures)
-                             (println (format "  %d of %d requests failed" failures requests))
-                             (print-failures result status-ok?)
-                             (when-not ignore-failure
-                               (throw (ex-info
-                                        (format "%d of %d requests failed for %s"
-                                          failures requests (pr-str command-name))
-                                        {:command-name command-name
-                                         :errors (:errors result)
-                                         :statuses (:statuses result)}))))
-                           failures))]
-        (dotimes [_ warmup-runs]
-          (check-run! (run!)))
-        (dotimes [i runs]
-          (let [start (System/nanoTime)
-                result (run!)
-                elapsed (- (System/nanoTime) start)]
-            (aset times i (* 0.000000001 elapsed))
-            (aset-int exit-codes i (if (pos? (check-run! result)) 1 0))))))
+    (try
+      (dotimes [_ warmup-runs]
+        (run-once! session))
+      (dotimes [i runs]
+        (let [{:keys [failures seconds]} (run-once! session)]
+          (aset times i (double seconds))
+          (aset-int exit-codes i (if (pos? failures) 1 0))))
+      (finally
+        (close-session! session)))
     (let [result (merge (stats/time-stats times)
                    {"command" command-name
                     "exit_codes" exit-codes

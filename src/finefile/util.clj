@@ -7,6 +7,15 @@
 
 (set! *warn-on-reflection* true)
 
+(defn check-positive!
+  "Throws unless v is a positive integer. context names the command or
+   comparison the value came from, and k the configuration key."
+  [context k v]
+  (when-not (and (integer? v) (pos? v))
+    (throw (ex-info (str k " must be a positive integer for " (pr-str context)
+                      ", got " (pr-str v))
+             {:context context :key k :value v}))))
+
 (defn- destroy-process-tree [^Process p]
   (doseq [^ProcessHandle handle (-> p .toHandle .descendants .iterator iterator-seq)]
     (.destroy handle)))
