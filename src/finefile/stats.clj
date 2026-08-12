@@ -290,7 +290,9 @@
      :p-different posterior probability that the two rates differ at all,
                   with equal prior odds on the two hypotheses
      :p-practical posterior probability that they differ by more than
-                  min-effect, present only when min-effect is positive
+                  min-effect, averaged over both hypotheses so that it can
+                  never exceed :p-different; present only when min-effect
+                  is positive
      :rounds      number of differences supplied
 
    min-effect is given as a ratio, so 0.01 asks about a 1% difference."
@@ -315,6 +317,10 @@
                 (zero? mean) 0.0
                 :else (Math/copySign max-t mean))
             log-bf10 (jzs-log-bf10 t n nu prior-scale)
+            ; Equal prior odds is the maximum entropy choice over the two
+            ; hypotheses, which makes the posterior probability the logistic of
+            ; the log Bayes factor.
+            p-different (/ 1.0 (+ 1.0 (Math/exp (- log-bf10))))
             half-width (* se (t-quantile (- 1.0 (* 0.5 (- 1.0 credible-mass))) nu))]
         (cond->
           {:batch-size batch-size
@@ -325,16 +331,27 @@
            :log-bf10 log-bf10
            :mean mean
            :rounds rounds
-           ; Equal prior odds is the maximum entropy choice over the two
-           ; hypotheses, which makes the posterior probability the logistic of
-           ; the log Bayes factor.
-           :p-different (/ 1.0 (+ 1.0 (Math/exp (- log-bf10))))
+           :p-different p-different
            :prior-scale prior-scale
            :stddev stddev
            :t t}
           (and min-effect (pos? min-effect))
+          ; Differing by more than min-effect is a special case of differing at
+          ; all, so this has to come out below :p-different. Getting that means
+          ; averaging over the same two hypotheses the Bayes factor weighs: the
+          ; point null contributes nothing, since it puts no mass beyond the
+          ; margin, leaving the probability that the effect is real at all
+          ; times the probability it clears the margin given that it is. The
+          ; flat-prior tail stands in for that second factor, which the Cauchy
+          ; prior would shrink a little further toward zero.
+          ;
+          ; The tail on its own answers a narrower question and is what this
+          ; used to report. It pays no Occam penalty for the alternative and
+          ; does not saturate the way the Bayes factor does at one or two
+          ; degrees of freedom, so it would read 100% over batches whose Bayes
+          ; factor cannot get past 88% however large the effect.
           (assoc :p-practical
-            (interval-tail mean se nu (Math/log1p min-effect))))))))
+            (* p-different (interval-tail mean se nu (Math/log1p min-effect)))))))))
 
 (defn time-stats [^doubles times]
   (let [A (aclone times)]

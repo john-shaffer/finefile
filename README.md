@@ -29,13 +29,13 @@ timeout-seconds = 300
 ```
 $ finefile alpha.compare
 Compare: rewrite (a = baseline, b = candidate)
-  round   8 ( 32 runs)   ratio 1.7686   P(different) 82.5%   P(> 1.0%) 100.0%
-  round   9 ( 36 runs)   ratio 1.7824   P(different) 77.5%   P(> 1.0%) 100.0%
-  round  10 ( 40 runs)   ratio 1.8069   P(different) 76.7%   P(> 1.0%) 100.0%
+  round   8 ( 32 runs)   ratio 1.7686   P(different) 82.5%   P(> 1.0%) 82.5%
+  round   9 ( 36 runs)   ratio 1.7824   P(different) 77.5%   P(> 1.0%) 77.5%
+  round  10 ( 40 runs)   ratio 1.8069   P(different) 76.7%   P(> 1.0%) 76.7%
   Different: baseline is 81.8% faster than candidate
   Throughput ratio baseline/candidate:  1.8180  [1.7274, 1.9134] (95.0% credible)
   P(different) 99.6%   BF10 262   after 16 rounds (4 batches of 4)
-  P(difference exceeds 1.0%) 100.0%
+  P(difference exceeds 1.0%) 99.6%
 ```
 
 Progress lines begin once there are enough rounds to batch — round 8 with the
@@ -74,7 +74,19 @@ both:
   all, from the JZS default Bayes factor: a `1/sd` prior on the nuisance
   parameters and a `Cauchy(0, prior-scale)` prior on the standardized effect.
 - **`P(> min-effect)`** is the probability that they differ by more than
-  `min-effect`, which defaults to 1%.
+  `min-effect`, which defaults to 1%. Differing by that much is a special case
+  of differing at all, so this is averaged over the same two hypotheses and
+  always lands at or below `P(different)`: the point null puts no mass beyond
+  the margin, which leaves the probability that the effect is real at all
+  times the probability it clears the margin given that it is.
+
+That averaging is why a comparison cannot call two batches *different* however
+large the effect looks. One degree of freedom caps the Bayes factor near 7, so
+the most any two batches can say is about 88%.
+
+The two probabilities coincide once a difference dwarfs the margin, as in the
+run above. They separate when it does not: a real difference of a fifth of a
+percent drives `P(> 1.0%)` to zero while `P(different)` climbs toward one.
 
 `P(> min-effect)` is what the stopping rule uses. It stops at `certainty`
 (default 99%) for *different*, at `1 - certainty` for *indistinguishable*, and

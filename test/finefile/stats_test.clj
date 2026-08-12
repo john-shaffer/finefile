@@ -99,6 +99,36 @@
     (is (nil? (:p-practical (stats/paired-comparison [0.1 0.2] {}))))
     (is (nil? (:p-practical (stats/paired-comparison [0.1 0.2] {:min-effect 0}))))))
 
+(deftest paired-comparison-practical-probability-respects-the-point-null
+  (testing "differing by more than the margin is a special case of differing"
+    ; So the practical probability is averaged over both hypotheses and can
+    ; never come out above the point-null posterior. The bare tail probability
+    ; that this used to report regularly did, since it pays no Occam penalty
+    ; for the alternative.
+    (doseq [mean [0.0 0.002 0.01 0.05 0.5]
+            spread [0.0 0.001 0.01 0.1]
+            n [2 3 5 9 20]]
+      (let [ds (map #(+ mean (* spread (Math/sin (* 2.3 (double %))))) (range n))
+            {:keys [p-different p-practical]}
+            (stats/paired-comparison ds {:min-batch 1 :min-effect 0.01})]
+        (is (<= (double p-practical) (+ 1.0e-12 (double p-different)))
+          (str "mean = " mean ", spread = " spread ", n = " n)))))
+  (testing "so two batches cannot clear 99% however large the effect"
+    ; One degree of freedom caps the Bayes factor near 7, and the practical
+    ; probability now inherits that ceiling instead of reading a flat 100%.
+    (let [{:keys [batches p-practical]}
+          (stats/paired-comparison [1.79 1.81] {:min-batch 1 :min-effect 0.01})]
+      (is (= 2 batches))
+      (is (< 0.5 p-practical 0.9))))
+  (testing "while ruling a difference out stays fast"
+    ; The point null on its own is still far from convinced at this point, so
+    ; the margin is doing the work in this direction, as it always was.
+    (let [ds (map #(* 0.004 (Math/cos (* 1.7 (double %)))) (range 16))
+          {:keys [p-different p-practical]}
+          (stats/paired-comparison ds {:min-batch 4 :min-effect 0.01})]
+      (is (< 0.5 p-different))
+      (is (close? p-practical 0.0 1.0e-6)))))
+
 (deftest paired-comparison-handles-zero-spread
   (testing "identical differences do not produce infinities"
     (let [{:keys [bf10 ci log-bf10 p-different t]}

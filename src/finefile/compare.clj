@@ -95,8 +95,11 @@
    Returns :different, :indistinguishable, or nil to keep going. With a
    positive min-effect the decision uses the posterior probability that the
    two commands differ by more than that ratio, which answers \"do these
-   differ enough to care\". With min-effect at zero it uses the point-null
-   Bayes factor, which answers \"do these differ at all\" - a question that can
+   differ enough to care\". That probability is averaged over the point null
+   as well (see finefile.stats/paired-comparison), so it carries the Bayes
+   factor's Occam penalty and cannot call two batches different however large
+   the effect looks. With min-effect at zero it uses the point-null Bayes
+   factor alone, which answers \"do these differ at all\" - a question that can
    be answered quickly in the affirmative but only very slowly in the
    negative, since no finite number of rounds rules a point out."
   [{:keys [p-different p-practical]} {:keys [certainty min-effect]}]

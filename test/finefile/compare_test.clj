@@ -42,7 +42,11 @@
   (testing "two rounds are never enough to be certain, however large the effect"
     ; With one degree of freedom the posterior is heavy tailed, so min-rounds
     ; of 2 cannot conclude by accident.
-    (is (nil? (cmp/verdict (summary [1.79 1.81]) {:certainty 0.99}))))
+    (is (nil? (cmp/verdict (summary [1.79 1.81]) {:certainty 0.99})))
+    (testing "including with a margin, since that carries the same penalty"
+      (is (nil? (cmp/verdict
+                  (stats/paired-comparison [1.79 1.81] {:min-batch 1 :min-effect 0.01})
+                  {:certainty 0.99 :min-effect 0.01})))))
   (testing "a few more rounds of the same effect are"
     (is (= :different
           (cmp/verdict (summary [1.79 1.81 1.80 1.78]) {:certainty 0.99}))))
@@ -111,10 +115,13 @@
           (is (< 1.0 (get c "throughput_ratio")))
           (is (str/includes? out "fast is ")))
         (testing "having cleared the certainty it stopped on"
-          ; Not the credible interval: the rule stops on a directional tail
+          ; Not the credible interval: the rule stops on a posterior tail
           ; probability, which an interval at these round counts need not
-          ; reflect, since two rounds leave only one degree of freedom.
-          (is (<= (get c "certainty") (get c "p_practical"))))
+          ; reflect, since a handful of rounds leave few degrees of freedom.
+          (is (<= (get c "certainty") (get c "p_practical")))
+          ; And the margin can only ever be cleared by less than the point
+          ; null is, since the one is averaged over the other.
+          (is (<= (get c "p_practical") (get c "p_different"))))
         (testing "and brackets the estimate with a credible interval"
           (let [[lo hi] (get c "throughput_ratio_ci")]
             (is (< lo (get c "throughput_ratio") hi))))))))
@@ -278,11 +285,10 @@
           (is (= 1 (get c "batch_size"))))
         (testing "and the evidence, as a log so that it cannot overflow"
           (is (Double/isFinite (double (get c "log_bf10"))))
-          ; The stopping rule runs on p_practical. The point-null p_different
-          ; is the more conservative of the two and can still be undecided
-          ; here, so only the one that was stopped on is pinned down.
-          (is (<= 0.0 (get c "p_different") 1.0))
+          ; The stopping rule runs on p_practical, which is averaged over the
+          ; point null, so clearing the certainty drags p_different up with it.
           (is (< 0.99 (get c "p_practical")))
+          (is (<= (get c "p_practical") (get c "p_different") 1.0))
           (is (= (get c "rounds") (count (get c "log_throughput_ratio_differences")))))
         (testing "every number survives the round trip as a finite number"
           (let [numbers (->> (tree-seq coll? seq c)
