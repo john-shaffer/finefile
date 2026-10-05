@@ -5,12 +5,8 @@
    [finefile.stats :as stats]
    [finefile.util :as u])
   (:import
-   (java.net URI)
-   (java.net.http HttpClient HttpClient$Redirect HttpClient$Version HttpRequest HttpResponse HttpResponse$BodyHandlers)
-   (java.time Duration)
-   (java.util.concurrent ConcurrentHashMap ExecutorService Executors Semaphore)
-   (java.util.concurrent.atomic AtomicLong LongAdder)
-   (java.util.function Function)))
+   (finefile.http LoadGenerator LoadGenerator$Result)
+   (java.util List)))
 
 (set! *warn-on-reflection* true)
 
@@ -18,8 +14,8 @@
 (def ^:private ^:const default-runs 10)
 (def ^:private ^:const max-reported-errors 5)
 
-(def ^:private connect-timeout (Duration/ofMillis 30000))
-(def ^:private request-timeout (Duration/ofMillis 30000))
+(def ^:private ^:const connect-timeout-ms 30000)
+(def ^:private ^:const read-timeout-ms 30000)
 
 (defn http-command? [command]
   (let [{:strs [urls urls-command]} (get-in command ["alpha" "http"])]
@@ -50,57 +46,14 @@
       (fn [status] (contains? expected (long status)))
       (fn [status] (<= 200 (long status) 299)))))
 
-(defn- inc-count! [^ConcurrentHashMap counts k]
-  (.increment
-    ^LongAdder (.computeIfAbsent counts k
-                 (reify Function
-                   (apply [_ _] (LongAdder.))))))
-
-(defn- counts->map [^ConcurrentHashMap counts]
-  (persistent!
-    (reduce (fn [m e] (assoc! m (key e) (.sum ^LongAdder (val e))))
-      (transient {}) counts)))
-
-(defn- error-label
-  "Returns a short description of t, used to group errors in the failure report."
-  [^Throwable t]
-  ; Exceptions from HttpClient are often empty wrappers, e.g. a ConnectException
-  ; whose cause holds the "Connection refused" message.
-  (let [causes (take 10 (take-while some? (iterate ex-cause t)))
-        msg (some #(let [m (ex-message %)] (when-not (str/blank? m) m)) causes)
-        class-name (.getSimpleName (class t))]
-    (cond
-      msg (str class-name ": " msg)
-      (next causes) (str class-name " (" (.getSimpleName (class (last causes))) ")")
-      :else class-name)))
-
 (defn- run-requests!
-  "Sends `requests` requests, at most `concurrency` of them in flight at a time.
+  "Sends `requests` requests through load-generator.
 
    Returns a map of {:errors {label count}, :statuses {status-code count}}."
-  [{:keys [^HttpClient http-client next-request requests ^Semaphore semaphore]}]
-  (let [errors (ConcurrentHashMap.)
-        statuses (ConcurrentHashMap.)]
-    (with-open [^ExecutorService executor (Executors/newVirtualThreadPerTaskExecutor)]
-      (dotimes [_ requests]
-        (.execute executor
-          (fn []
-            (try
-              (.acquire semaphore)
-              (try
-                (let [^HttpRequest request (next-request)
-                      ^HttpResponse response (.send http-client request
-                                               (HttpResponse$BodyHandlers/discarding))]
-                  (inc-count! statuses (.statusCode response)))
-                (catch Throwable t
-                  (inc-count! errors (error-label t)))
-                (finally
-                  (.release semaphore)))
-              (catch InterruptedException _
-                ; The benchmark is being cancelled, e.g. because it timed out.
-                (.interrupt (Thread/currentThread))))))))
-    {:errors (counts->map errors)
-     :statuses (counts->map statuses)}))
+  [^LoadGenerator load-generator requests]
+  (let [^LoadGenerator$Result result (.run load-generator (long requests))]
+    {:errors (into {} (.errors result))
+     :statuses (into {} (.statuses result))}))
 
 (defn- failure-count [{:keys [errors statuses]} status-ok?]
   (reduce +
@@ -148,17 +101,13 @@
                {:command command})))
     urls))
 
-(defn- url->request [command-name url]
+(defn- load-generator [command-name urls concurrency]
   (try
-    (-> (HttpRequest/newBuilder)
-        (.uri (URI/create url))
-        (.timeout request-timeout)
-        (.GET)
-        (.build))
-    (catch Exception e
-      (throw (ex-info (str "Invalid url " (pr-str url) " for " (pr-str command-name)
-                        ": " (ex-message e))
-               {:command-name command-name :url url}
+    (LoadGenerator. ^List urls (int concurrency)
+      (int connect-timeout-ms) (int read-timeout-ms))
+    (catch IllegalArgumentException e
+      (throw (ex-info (str (ex-message e) " for " (pr-str command-name))
+               {:command-name command-name :urls urls}
                e)))))
 
 (defn open-session
@@ -174,36 +123,20 @@
         _ (u/check-positive! command-name "alpha.http.concurrency" concurrency)
         _ (u/check-positive! command-name "alpha.http.requests" requests)
         status-ok? (status-ok-fn expected-status)
-        semaphore (Semaphore. concurrency)
-        ; Requests are immutable and reusable, so we build them all up front
-        ; instead of parsing urls inside the timed loop.
-        requests-arr (object-array (map (partial url->request command-name)
-                                     (resolve-urls base-dir command-name command)))
-        request-ct (alength requests-arr)
-        request-idx (AtomicLong. 0)
-        next-request (fn []
-                       (aget requests-arr
-                         (rem (.getAndIncrement request-idx) request-ct)))
         ; Built last so that nothing between here and the return can throw and
-        ; leak the client.
-        http-client (-> (HttpClient/newBuilder)
-                        (.connectTimeout connect-timeout)
-                        (.followRedirects HttpClient$Redirect/NEVER)
-                        (.version HttpClient$Version/HTTP_2)
-                        (.build))]
+        ; leak its connections.
+        load-generator (load-generator command-name
+                         (resolve-urls base-dir command-name command)
+                         concurrency)]
     {:command-name command-name
-     :http-client http-client
      :ignore-failure ignore-failure
+     :load-generator load-generator
      :requests requests
-     :run-requests! #(run-requests!
-                       {:http-client http-client
-                        :next-request next-request
-                        :requests requests
-                        :semaphore semaphore})
+     :run-requests! #(run-requests! load-generator requests)
      :status-ok? status-ok?}))
 
-(defn close-session! [{:keys [^HttpClient http-client]}]
-  (.close http-client))
+(defn close-session! [{:keys [^LoadGenerator load-generator]}]
+  (.close load-generator))
 
 (defn run-once!
   "Runs and times one batch of requests. Returns {:failures n, :seconds t}.

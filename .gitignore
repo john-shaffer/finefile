@@ -9,3 +9,4 @@ bench*.json
 compare*.json
 plot*.png
 result
+target

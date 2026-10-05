@@ -109,6 +109,34 @@
             (is (= [0 0] (vec (get result "exit_codes"))))
             (is (= (total-requests c) (.get accepts)))))))))
 
+(deftest connections-closed-on-use-are-retried
+  (testing "a reused connection the server closes on receiving the request is retried on a fresh one"
+    ; A server can close a keep-alive connection just as a request is written
+    ; to it, which no check before sending can rule out. This server answers
+    ; the first request on each connection and closes on the second without a
+    ; response, so every reuse hits that race.
+    (doseq [c concurrencies]
+      (with-raw-server (fn [n]
+                         (if (= 1 n)
+                           "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
+                           {:close true :response ""}))
+        (fn [url accepts]
+          (let [result (bench/bench "." "closed-on-use" (scaled-command c {"urls" [url]}))]
+            (is (= [0 0] (vec (get result "exit_codes"))))
+            ; Each connection answers exactly one request: its first, or the
+            ; retry of a request that found the previous connection closed.
+            (is (= (total-requests c) (.get accepts)))))))))
+
+(deftest fresh-connections-are-not-retried
+  (testing "a request that fails on a fresh connection is a failure, so a broken server is not retried forever"
+    (doseq [c concurrencies]
+      (with-raw-server (constantly {:close true :response ""})
+        (fn [url accepts]
+          (is (thrown-with-msg? clojure.lang.ExceptionInfo #"requests failed"
+                (bench/bench "." "always-closes" (scaled-command c {"urls" [url]}))))
+          ; The warmup run fails, with exactly one connection per request.
+          (is (= (* 2 c) (.get accepts))))))))
+
 (deftest truncated-responses-fail
   (testing "a response cut off mid-body is a failure, not a retry"
     (doseq [c concurrencies]

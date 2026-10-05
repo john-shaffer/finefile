@@ -45,8 +45,12 @@ format:
     standard-clj fix
     fd -e toml -x taplo format
 
+# Compile the Java sources into target/classes
+javac:
+    javac --release 25 -d target/classes $(fd -e java . src-java)
+
 # Run finefile
-run *args:
+run *args: javac
     clojure -M -m finefile.cli {{ args }}
 
 # Run the Clojure tests and show their output

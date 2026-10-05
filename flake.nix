@@ -55,6 +55,7 @@
               with pkgs;
               [
                 (clojure.override { jdk = getJdk pkgs; })
+                (getJdk pkgs)
                 deps-lock
                 fd
                 inputs.healthy.packages.${system}.default
@@ -104,12 +105,21 @@
           finefileSrc = lib.sources.sourceFilesBySuffices self [
             ".clj"
             ".edn"
+            ".java"
             ".json"
           ];
+          javacOpts = {
+            src-dirs = [ "src-java" ];
+            javac-opts = [
+              "--release"
+              "25"
+            ];
+          };
           finefileBin = clj-nix.lib.mkCljApp {
             inherit pkgs;
             modules = [
               {
+                inherit javacOpts;
                 jdk = jdkPackage;
                 main-ns = "finefile.cli";
                 name = "finefile";
@@ -129,7 +139,7 @@
             let
               depsEdn = builtins.readFile "${finefileSrc}/deps.edn";
               patchedDepsEdn =
-                builtins.replaceStrings [ ":paths [\"src\"]" ] [ ":paths [\"src\" \"test\"]" ]
+                builtins.replaceStrings [ ":paths [\"src\" " ] [ ":paths [\"src\" \"test\" " ]
                   depsEdn;
               patchedDepsEdnFile = pkgs.writeText "deps.edn" patchedDepsEdn;
             in
@@ -142,6 +152,7 @@
             inherit pkgs;
             modules = [
               {
+                inherit javacOpts;
                 jdk = jdkPackage;
                 main-ns = "finefile.test-runner";
                 name = "finefile-tests";
@@ -154,6 +165,7 @@
             inherit pkgs;
             modules = [
               {
+                inherit javacOpts;
                 jdk = jdkPackage;
                 main-ns = "finefile.cli";
                 name = "finefile";
