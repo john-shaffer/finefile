@@ -36,6 +36,7 @@ build:
 
 check:
     nix flake check
+    nix flake check ./dev
 
 # Format source and then check for unfixable issues
 format:
@@ -67,6 +68,7 @@ _report attr:
 # Update dependencies
 update: && update-deps-lock
     nix flake update
+    nix flake update --flake ./dev
     clj -M:antq --upgrade --force
 
 # Update deps-lock.json after changing Clojure deps

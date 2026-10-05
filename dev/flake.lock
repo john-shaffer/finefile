@@ -48,7 +48,6 @@
     "finefile": {
       "inputs": {
         "clj-nix": "clj-nix",
-        "healthy": "healthy",
         "hyperfine-flake": "hyperfine-flake",
         "nixpkgs": "nixpkgs"
       },
@@ -175,10 +174,7 @@
     "root": {
       "inputs": {
         "finefile": "finefile",
-        "healthy": [
-          "finefile",
-          "healthy"
-        ]
+        "healthy": "healthy"
       }
     },
     "rust-overlay": {

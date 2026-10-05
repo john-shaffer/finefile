@@ -61,26 +61,6 @@
         "type": "github"
       }
     },
-    "healthy": {
-      "inputs": {
-        "nixpkgs": [
-          "nixpkgs"
-        ]
-      },
-      "locked": {
-        "lastModified": 1786494457,
-        "narHash": "sha256-K5KKmP9Oi0mlMMCQ0E4rZ9EEuIaERvFe96ufTQtS9q4=",
-        "owner": "john-shaffer",
-        "repo": "healthy",
-        "rev": "cd2e9565dbc05ef10542335faa652df918f6b338",
-        "type": "github"
-      },
-      "original": {
-        "owner": "john-shaffer",
-        "repo": "healthy",
-        "type": "github"
-      }
-    },
     "hyperfine-flake": {
       "inputs": {
         "nixpkgs": [
@@ -153,7 +133,6 @@
     "root": {
       "inputs": {
         "clj-nix": "clj-nix",
-        "healthy": "healthy",
         "hyperfine-flake": "hyperfine-flake",
         "nixpkgs": "nixpkgs"
       }

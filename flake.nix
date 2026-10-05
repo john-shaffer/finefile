@@ -8,10 +8,6 @@
       inputs.nixpkgs.follows = "nixpkgs";
       url = "github:jlesquembre/clj-nix";
     };
-    healthy = {
-      inputs.nixpkgs.follows = "nixpkgs";
-      url = "github:john-shaffer/healthy";
-    };
     hyperfine-flake = {
       inputs.nixpkgs.follows = "nixpkgs";
       url = "github:john-shaffer/hyperfine-flake";
@@ -48,32 +44,6 @@
       );
     in
     {
-      devShells = forAllSystems (
-        system: pkgs: {
-          default = pkgs.mkShell {
-            buildInputs =
-              with pkgs;
-              [
-                (clojure.override { jdk = getJdk pkgs; })
-                (getJdk pkgs)
-                deps-lock
-                fd
-                inputs.healthy.packages.${system}.default
-                jsonfmt
-                just
-                nixfmt
-                omnix
-                siege
-              ]
-              ++ getRuntimePaths system pkgs;
-            shellHook = ''
-              echo
-              echo -e "Run '\033[1mjust <recipe>\033[0m' to get started"
-              just --list
-            '';
-          };
-        }
-      );
       # Each check reads a report that records the command's log and exit
       # status without failing, so that a failing run is cached like any other
       # build and its log is easy to reach with `just test`.
@@ -95,6 +65,14 @@
         {
           clj-tests = checkReport "finefile-clj-tests" self.packages.${system}.finefile-test-report;
           smoke = checkReport "finefile-smoke-test" self.packages.${system}.finefile-smoke-report;
+        }
+      );
+      # Shared with the dev shell in dev/flake.nix, so the JDK and the tools
+      # finefile runs are chosen in one place.
+      lib = forAllSystems (
+        system: pkgs: {
+          jdk = getJdk pkgs;
+          runtimePaths = getRuntimePaths system pkgs;
         }
       );
       packages = forAllSystems (
