@@ -48,7 +48,7 @@ format:
 
 # Compile the Java sources into target/classes
 javac:
-    javac --release 25 -d target/classes $(fd -e java . src-java)
+    javac -d target/classes $(fd -e java . src-java)
 
 # Run finefile
 run *args: javac

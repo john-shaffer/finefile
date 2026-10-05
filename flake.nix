@@ -86,13 +86,7 @@
             ".java"
             ".json"
           ];
-          javacOpts = {
-            src-dirs = [ "src-java" ];
-            javac-opts = [
-              "--release"
-              "25"
-            ];
-          };
+          javacOpts.src-dirs = [ "src-java" ];
           finefileBin = clj-nix.lib.mkCljApp {
             inherit pkgs;
             modules = [
