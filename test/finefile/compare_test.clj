@@ -104,13 +104,16 @@
 (deftest stops-early-on-an-obvious-difference
   (server/with-server slow-handler
     (fn [url _]
-      (let [[result out] (run-compare! (comparison {})
+      ; A cap far above where it stops, so that a few rounds slowed down by a
+      ; busy machine can't run into it. Under full CPU load this took 3 to 11
+      ; rounds over 150 tries, and usually 4 or 5.
+      (let [[result out] (run-compare! (comparison {"max-rounds" 40})
                            {"fast" (command (str url "/fast"))
                             "slow" (command (str url "/slow"))})
             c (first (get result "comparisons"))]
         (is (= "different" (get c "verdict")))
         (testing "without needing anywhere near max-rounds"
-          (is (< (get c "rounds") 8)))
+          (is (< (get c "rounds") 20)))
         (testing "and reports the fast side as faster"
           (is (< 1.0 (get c "throughput_ratio")))
           (is (str/includes? out "fast is ")))
