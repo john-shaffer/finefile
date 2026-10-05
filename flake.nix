@@ -54,7 +54,7 @@
             buildInputs =
               with pkgs;
               [
-                (clojure.overrideAttrs { jdk = getJdk pkgs; })
+                (clojure.override { jdk = getJdk pkgs; })
                 deps-lock
                 fd
                 inputs.healthy.packages.${system}.default
