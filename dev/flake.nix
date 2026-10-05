@@ -7,6 +7,11 @@
       inputs.nixpkgs.follows = "finefile/nixpkgs";
       url = "github:john-shaffer/healthy";
     };
+    sand = {
+      inputs.clj-nix.follows = "finefile/clj-nix";
+      inputs.nixpkgs.follows = "finefile/nixpkgs";
+      url = "github:john-shaffer/sand";
+    };
   };
   outputs =
     inputs:
@@ -37,9 +42,8 @@
                 fd
                 inputs.finefile.inputs.clj-nix.packages.${system}.deps-lock
                 inputs.healthy.packages.${system}.default
-                jsonfmt
+                inputs.sand.packages.${system}.default
                 just
-                nixfmt
                 omnix
                 siege
               ]

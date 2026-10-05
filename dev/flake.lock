@@ -174,7 +174,8 @@
     "root": {
       "inputs": {
         "finefile": "finefile",
-        "healthy": "healthy"
+        "healthy": "healthy",
+        "sand": "sand"
       }
     },
     "rust-overlay": {
@@ -196,6 +197,31 @@
       "original": {
         "owner": "oxalica",
         "repo": "rust-overlay",
+        "type": "github"
+      }
+    },
+    "sand": {
+      "inputs": {
+        "clj-nix": [
+          "finefile",
+          "clj-nix"
+        ],
+        "nixpkgs": [
+          "finefile",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1791213601,
+        "narHash": "sha256-ziWMREwlwjosxkcDmuey+6oemjIlP++Yf9doQCzsWto=",
+        "owner": "john-shaffer",
+        "repo": "sand",
+        "rev": "1ec911a455415f24ed9406755d1328df82e2443f",
+        "type": "github"
+      },
+      "original": {
+        "owner": "john-shaffer",
+        "repo": "sand",
         "type": "github"
       }
     }

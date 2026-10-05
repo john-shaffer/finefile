@@ -40,11 +40,8 @@ check:
 
 # Format source and then check for unfixable issues
 format:
-    fd -e json -x jsonfmt -w
-    just --fmt --unstable
-    fd -e nix -x nixfmt
+    sand fmt
     standard-clj fix
-    fd -e toml -x taplo format
 
 # Compile the Java sources into target/classes
 javac:
