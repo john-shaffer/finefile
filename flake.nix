@@ -73,16 +73,27 @@
           };
         }
       );
+      # Each check reads a report that records the command's log and exit
+      # status without failing, so that a failing run is cached like any other
+      # build and its log is easy to reach with `just test`.
       checks = forAllSystems (
-        system: pkgs: {
-          clj-tests = pkgs.runCommand "finefile-clj-tests" { } ''
-            ${self.packages.${system}.finefile-tests}/bin/finefile-tests
-            touch $out
-          '';
-          smoke = pkgs.runCommand "finefile-smoke-test" { } ''
-            ${self.packages.${system}.finefile-unwrapped}/bin/finefile --help
-            touch $out
-          '';
+        system: pkgs:
+        let
+          checkReport =
+            name: report:
+            pkgs.runCommand name { } ''
+              status=$(cat ${report}/status)
+              if [ "$status" != 0 ]; then
+                cat ${report}/log >&2
+                echo "${name} exited with status $status" >&2
+                exit 1
+              fi
+              touch $out
+            '';
+        in
+        {
+          clj-tests = checkReport "finefile-clj-tests" self.packages.${system}.finefile-test-report;
+          smoke = checkReport "finefile-smoke-test" self.packages.${system}.finefile-smoke-report;
         }
       );
       packages = forAllSystems (
@@ -198,6 +209,18 @@
               cp ${finefileSrc}/schema/finefile.toml.latest.schema.json $out/share/finefile
             '';
           };
+          # Runs script and records its output and exit status, succeeding
+          # even when the script fails. See checks.
+          runReport =
+            name: script:
+            runCommand name { } ''
+              mkdir -p $out
+              status=0
+              (
+                ${script}
+              ) > $out/log 2>&1 || status=$?
+              echo "$status" > $out/status
+            '';
           runtimePaths = getRuntimePaths system pkgs;
           finefileWrapped =
             runCommand finefileUnwrapped.name
@@ -218,6 +241,12 @@
           finefile = finefileWrapped;
           finefile-jvm = finefileJvmWrapped;
           finefile-jvm-unwrapped = finefileJvmUnwrapped;
+          finefile-smoke-report = runReport "finefile-smoke-report" ''
+            ${finefileUnwrapped}/bin/finefile --help
+          '';
+          finefile-test-report = runReport "finefile-test-report" ''
+            ${finefileTestBin}/bin/finefile-tests
+          '';
           finefile-tests = finefileTestBin;
           finefile-unwrapped = finefileUnwrapped;
         }

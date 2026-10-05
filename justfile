@@ -33,8 +33,16 @@ format:
 run *args:
     clojure -M -m finefile.cli {{ args }}
 
-test:
-    nix flake check
+# Run the Clojure tests and show their output
+test: (_report "finefile-test-report")
+
+# Build a report package, show its log, and exit with its status
+_report attr:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    out=$(nix build --no-link --print-out-paths ".#{{ attr }}")
+    cat "$out/log"
+    exit "$(cat "$out/status")"
 
 # Update dependencies
 update: && update-deps-lock
