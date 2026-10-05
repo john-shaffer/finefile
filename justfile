@@ -14,6 +14,22 @@ list:
 bench *args: build
     nix run . -- bench {{ args }}
 
+# Run the http benchmarks in finefile-http.toml against a local healthy server
+bench-http *args: build
+    just _with-healthy nix run . -- bench -f finefile-http.toml {{ args }}
+
+# Run the http comparisons in finefile-http.toml against a local healthy server
+compare-http *args: build
+    just _with-healthy nix run . -- alpha.compare -f finefile-http.toml {{ args }}
+
+# Run a command while healthy listens on port 1234, as finefile-http.toml expects
+_with-healthy +cmd:
+    nix develop ./dev -c bash -c ' \
+        PORT=1234 healthy > /dev/null & \
+        trap "kill $!" EXIT; \
+        until (exec 3<> /dev/tcp/127.0.0.1/1234) 2> /dev/null; do sleep 0.1; done; \
+        "$@"' _ {{ cmd }}
+
 # Build the finefile package
 build:
     nix build
