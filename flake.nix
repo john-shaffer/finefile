@@ -2,7 +2,8 @@
   description = "finefile CLI for hyperfine benchmarks";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
+    # Latest stable nixpkgs
+    nixpkgs.url = "https://flakehub.com/f/NixOS/nixpkgs/0";
     clj-nix = {
       inputs.nixpkgs.follows = "nixpkgs";
       url = "github:jlesquembre/clj-nix";
