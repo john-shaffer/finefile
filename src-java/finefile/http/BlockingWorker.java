@@ -14,9 +14,10 @@ import javax.net.ssl.SSLSocketFactory;
 
 /**
  * Drives one connection per origin with blocking socket calls on its own
- * thread. For https, an SSLSocket does the TLS.
+ * thread. Used for https, where an SSLSocket does the TLS, and whenever an
+ * event loop would only have one connection to drive.
  */
-final class BlockingWorker {
+final class BlockingWorker implements LoadGenerator.Driver {
   private final Connection[] connections;
   private final Tally tally = new Tally();
   private final int connectTimeoutMillis;
@@ -28,11 +29,18 @@ final class BlockingWorker {
     this.readTimeoutMillis = readTimeoutMillis;
   }
 
-  Tally tally() {
+  @Override
+  public Tally tally() {
     return tally;
   }
 
-  void run(Run run) {
+  @Override
+  public void wake() {
+    // Closing the connections is what unblocks a read.
+  }
+
+  @Override
+  public void run(Run run) {
     Target target;
     while ((target = run.next()) != null) {
       Connection c = connections[target.origin];
@@ -52,7 +60,8 @@ final class BlockingWorker {
     }
   }
 
-  void closeConnections() {
+  @Override
+  public void closeConnections() {
     for (Connection c : connections) {
       if (c != null) {
         c.close();

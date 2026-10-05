@@ -22,8 +22,12 @@ import java.util.concurrent.atomic.AtomicLong;
  * write a prebuilt request, parse just enough of the response to find where
  * it ends, repeat.
  *
- * <p>Each unit of concurrency is a {@link BlockingWorker} on its own platform
- * thread, holding one connection per origin.
+ * <p>Plain http connections are spread over a few {@link EventLoop}s,
+ * which has minimal CPU overhead. Low concurrency and https use
+ * a {@link BlockingWorker} per connection instead: the first because it is
+ * cheaper when a loop would only have one connection to drive, the second
+ * because TLS over a non-blocking channel would mean driving an SSLEngine by
+ * hand.
  *
  * <p>Connections persist across runs, so that only warmup runs pay for
  * connecting. Responses are drained and discarded. Redirects are not
@@ -58,7 +62,7 @@ public final class LoadGenerator implements AutoCloseable {
     }
   }
 
-  /** The requests of one run, which every worker claims from until none are left. */
+  /** The requests of one run, which every driver claims from until none are left. */
   static final class Run {
     final Target[] targets;
     final long requests;
@@ -67,11 +71,11 @@ public final class LoadGenerator implements AutoCloseable {
     final CountDownLatch finished;
     volatile boolean cancelled;
 
-    Run(Target[] targets, long requests, long first, int workers) {
+    Run(Target[] targets, long requests, long first, int drivers) {
       this.targets = targets;
       this.requests = requests;
       this.first = first;
-      this.finished = new CountDownLatch(workers);
+      this.finished = new CountDownLatch(drivers);
     }
 
     /** Returns the target of the next request, or null when there are none left. */
@@ -111,8 +115,20 @@ public final class LoadGenerator implements AutoCloseable {
     }
   }
 
+  /** Something that sends a share of each run's requests on its own thread. */
+  interface Driver {
+    void run(Run run);
+
+    /** Unblocks run promptly once run.cancelled is set. */
+    void wake();
+
+    void closeConnections();
+
+    Tally tally();
+  }
+
   private final Target[] targets;
-  private final BlockingWorker[] workers;
+  private final Driver[] drivers;
   // Platform threads rather than virtual ones: a virtual thread that blocks on
   // a socket parks and is woken through the poller, which roughly doubles the
   // client's cost per request when concurrency is low. The pool keeps its
@@ -137,13 +153,36 @@ public final class LoadGenerator implements AutoCloseable {
     }
     Map<String, Integer> origins = new HashMap<>();
     targets = new Target[urls.size()];
+    boolean https = false;
     for (int i = 0; i < targets.length; i++) {
       targets[i] = parse(urls.get(i), origins);
+      https |= targets[i].https;
     }
     int originCount = origins.size();
-    workers = new BlockingWorker[concurrency];
-    for (int i = 0; i < concurrency; i++) {
-      workers[i] = new BlockingWorker(originCount, connectTimeoutMillis, readTimeoutMillis);
+    // Half the cores, because the server under test is usually on the same
+    // machine and needs the rest. A loop easily drives far more connections
+    // than one core can answer, so on a lightweight endpoint this measured
+    // faster than a loop per core, which left the server short of CPU.
+    int loops = Math.max(1, Runtime.getRuntime().availableProcessors() / 2);
+    // When there would only be one connection per loop anyway, a thread per
+    // connection costs no more threads and skips the selector, which saves
+    // several microseconds per request in a native image.
+    if (https || concurrency <= loops) {
+      drivers = new Driver[concurrency];
+      for (int i = 0; i < concurrency; i++) {
+        drivers[i] = new BlockingWorker(originCount, connectTimeoutMillis, readTimeoutMillis);
+      }
+    } else {
+      drivers = new Driver[loops];
+      try {
+        for (int i = 0; i < loops; i++) {
+          int slots = concurrency / loops + (i < concurrency % loops ? 1 : 0);
+          drivers[i] = new EventLoop(slots, originCount, connectTimeoutMillis, readTimeoutMillis);
+        }
+      } catch (RuntimeException e) {
+        close();
+        throw e;
+      }
     }
   }
 
@@ -187,20 +226,20 @@ public final class LoadGenerator implements AutoCloseable {
    * through the urls. Must not be called concurrently with itself.
    *
    * @throws InterruptedException after closing every connection, so that the
-   *     workers stop promptly instead of finishing the run
+   *     drivers stop promptly instead of finishing the run
    */
   public Result run(long requests) throws InterruptedException {
     if (closed) {
       throw new IllegalStateException("LoadGenerator is closed");
     }
-    Run run = new Run(targets, requests, nextTarget, workers.length);
+    Run run = new Run(targets, requests, nextTarget, drivers.length);
     nextTarget = (nextTarget + requests) % targets.length;
-    List<Future<?>> futures = new ArrayList<>(workers.length);
+    List<Future<?>> futures = new ArrayList<>(drivers.length);
     try {
-      for (BlockingWorker w : workers) {
+      for (Driver d : drivers) {
         futures.add(executor.submit(() -> {
           try {
-            w.run(run);
+            d.run(run);
           } finally {
             run.finished.countDown();
           }
@@ -213,21 +252,24 @@ public final class LoadGenerator implements AutoCloseable {
       cancel(run, futures);
       throw e;
     } catch (ExecutionException e) {
-      // Workers catch everything a request can throw, so this is a bug or an
+      // Drivers catch everything a request can throw, so this is a bug or an
       // Error such as running out of memory.
       cancel(run, futures);
       throw new RuntimeException(e.getCause());
     }
     Map<Long, Long> statuses = new HashMap<>();
     Map<String, Long> errors = new HashMap<>();
-    for (BlockingWorker w : workers) {
-      w.tally().drainInto(statuses, errors);
+    for (Driver d : drivers) {
+      d.tally().drainInto(statuses, errors);
     }
     return new Result(statuses, errors);
   }
 
   private void cancel(Run run, List<Future<?>> futures) {
     run.cancelled = true;
+    for (Driver d : drivers) {
+      d.wake();
+    }
     for (Future<?> f : futures) {
       f.cancel(true);
     }
@@ -242,8 +284,10 @@ public final class LoadGenerator implements AutoCloseable {
   }
 
   private void closeConnections() {
-    for (BlockingWorker w : workers) {
-      w.closeConnections();
+    for (Driver d : drivers) {
+      if (d != null) {
+        d.closeConnections();
+      }
     }
   }
 

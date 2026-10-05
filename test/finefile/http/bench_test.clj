@@ -43,8 +43,9 @@
             "warmup-runs" 0))
         (is (= 3 (.get counter)))))))
 
-; Run at low and high concurrency, since a client may handle many
-; connections differently from a few.
+; Low concurrency runs a blocking worker per connection and higher
+; concurrency spreads connections over event loops, one per two cores, so
+; these run at both to cover each.
 (def ^:private concurrencies [2 64])
 
 (defn- scaled-command
