@@ -2,7 +2,10 @@
   (:require
    [clojure.test :refer [deftest is testing]]
    [finefile.http.bench :as bench]
-   [finefile.test-server :as server :refer [with-server]]))
+   [finefile.test-server :as server :refer [with-raw-server with-server]])
+  (:import
+   (java.net InetAddress ServerSocket SocketException)
+   (java.util.concurrent CancellationException ConcurrentHashMap)))
 
 (defn- command [http]
   {"alpha" {"http" (merge {"concurrency" 4 "requests" 8} http)}
@@ -39,6 +42,121 @@
             "runs" 1
             "warmup-runs" 0))
         (is (= 3 (.get counter)))))))
+
+; Run at low and high concurrency, since a client may handle many
+; connections differently from a few.
+(def ^:private concurrencies [2 64])
+
+(defn- scaled-command
+  "A command at the given concurrency, sending two requests per connection in
+   each of its 1 warmup and 2 timed runs."
+  [concurrency http]
+  (command (merge {"concurrency" concurrency "requests" (* 2 concurrency)} http)))
+
+(defn- total-requests [concurrency]
+  (* 3 2 concurrency))
+
+(deftest response-bodies-are-drained
+  (testing "bodies sent with a Content-Length or chunked are read in full, so the connection can be reused"
+    (doseq [c concurrencies
+            chunked [false true]]
+      (with-server (fn [_ _] {:body (apply str (repeat 50000 "x")) :chunked chunked :status 200})
+        (fn [url counter]
+          (let [result (bench/bench "." "body" (scaled-command c {"urls" [url]}))]
+            (is (= [0 0] (vec (get result "exit_codes"))))
+            (is (= (total-requests c) (.get counter)))))))))
+
+(deftest connections-are-kept-alive
+  (testing "connections are reused across requests and runs"
+    (doseq [c concurrencies]
+      (with-raw-server (constantly "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok")
+        (fn [url accepts]
+          (let [result (bench/bench "." "keep-alive" (scaled-command c {"urls" [url]}))]
+            (is (= [0 0] (vec (get result "exit_codes"))))
+            ; Not exactly c: against a fast server, the first connections can
+            ; take every request before the rest have opened.
+            (is (<= 1 (.get accepts) c))))))))
+
+(deftest close-delimited-bodies
+  (testing "a body without a length runs until the server closes the connection"
+    (doseq [c concurrencies]
+      (with-raw-server (constantly {:close true :response "HTTP/1.1 200 OK\r\n\r\nhello"})
+        (fn [url accepts]
+          (let [result (bench/bench "." "close-delimited" (scaled-command c {"urls" [url]}))]
+            (is (= [0 0] (vec (get result "exit_codes"))))
+            (is (= (total-requests c) (.get accepts)))))))))
+
+(deftest connection-close-is-honored
+  (testing "Connection: close and HTTP/1.0 responses get a new connection for the next request"
+    (doseq [c concurrencies
+            response ["HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Length: 0\r\n\r\n"
+                      "HTTP/1.0 200 OK\r\nContent-Length: 0\r\n\r\n"]]
+      (with-raw-server (constantly {:close true :response response})
+        (fn [url accepts]
+          (let [result (bench/bench "." "close" (scaled-command c {"urls" [url]}))]
+            (is (= [0 0] (vec (get result "exit_codes"))))
+            (is (= (total-requests c) (.get accepts)))))))))
+
+(deftest stale-connections-are-retried
+  (testing "a keep-alive connection the server closed while idle is replaced without counting a failure"
+    ; The server answers one request per connection as if it would keep it
+    ; open, then closes it, so every reuse finds a dead connection.
+    (doseq [c concurrencies]
+      (with-raw-server (constantly {:close true
+                                    :response "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"})
+        (fn [url accepts]
+          (let [result (bench/bench "." "stale" (scaled-command c {"urls" [url]}))]
+            (is (= [0 0] (vec (get result "exit_codes"))))
+            (is (= (total-requests c) (.get accepts)))))))))
+
+(deftest truncated-responses-fail
+  (testing "a response cut off mid-body is a failure, not a retry"
+    (doseq [c concurrencies]
+      (with-raw-server (constantly {:close true
+                                    :response "HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\nshort"})
+        (fn [url _]
+          (is (thrown-with-msg? clojure.lang.ExceptionInfo #"requests failed"
+                (bench/bench "." "truncated" (scaled-command c {"urls" [url]})))))))))
+
+(deftest urls-are-cycled-at-any-concurrency
+  (testing "requests are spread evenly over the urls"
+    (doseq [c concurrencies]
+      (let [paths (ConcurrentHashMap.)]
+        (with-server (fn [exchange _]
+                       (.merge paths (server/path exchange) 1 +)
+                       200)
+          (fn [url _]
+            (bench/bench "." "cycle"
+              (scaled-command c {"urls" [(str url "/a") (str url "/b")]}))
+            (is (= {"/a" (/ (total-requests c) 2) "/b" (/ (total-requests c) 2)}
+                  (into {} paths)))))))))
+
+(deftest https-failures-are-reported
+  (testing "https requests that fail the TLS handshake are counted as failures"
+    ; Answers in plaintext as soon as a connection opens, which the TLS
+    ; handshake rejects.
+    (with-open [server (ServerSocket. 0 1024 (InetAddress/getLoopbackAddress))]
+      (future
+        (try
+          (while true
+            (with-open [socket (.accept server)]
+              (.write (.getOutputStream socket) (.getBytes "HTTP/1.1 200 OK\r\n\r\n"))))
+          (catch SocketException _)))
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo #"requests failed"
+            (bench/bench "." "tls"
+              (command {"urls" [(str "https://127.0.0.1:" (.getLocalPort server))]})))))))
+
+(deftest cancelling-stops-requests
+  (testing "interrupting a run closes its connections instead of waiting out the read timeout"
+    (doseq [c concurrencies]
+      (with-raw-server (fn [_] (Thread/sleep 60000) "")
+        (fn [url _]
+          (let [fut (future (bench/bench "." "hang" (scaled-command c {"urls" [url]})))
+                started (System/nanoTime)]
+            (Thread/sleep 200)
+            (future-cancel fut)
+            (is (thrown? CancellationException @fut))
+            (is (< (- (System/nanoTime) started) 5000000000))))))))
 
 (deftest unexpected-status-fails
   (testing "a non-2xx status fails the benchmark"
