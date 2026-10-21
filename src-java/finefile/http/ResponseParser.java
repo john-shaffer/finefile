@@ -5,12 +5,12 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 /**
- * Finds where an HTTP/1.1 response ends, given its bytes in whatever pieces
- * the network delivers them.
+ * Finds where an HTTP/1.1 response ends, given its bytes in whatever pieces the network delivers
+ * them.
  *
- * <p>Only what that takes is parsed: the status code and the Content-Length,
- * Transfer-Encoding and Connection headers. Bodies are skipped without being
- * copied, so a response costs a scan of its headers and nothing per body byte.
+ * <p>Only what that takes is parsed: the status code and the Content-Length, Transfer-Encoding and
+ * Connection headers. Bodies are skipped without being copied, so a response costs a scan of its
+ * headers and nothing per body byte.
  */
 final class ResponseParser {
   private static final int MAX_LINE = 8 * 1024;
@@ -63,8 +63,8 @@ final class ResponseParser {
   }
 
   /**
-   * Consumes bytes from buf[off, off + len) up to the end of the response and
-   * returns how many it used.
+   * Consumes bytes from buf[off, off + len) up to the end of the response and returns how many it
+   * used.
    */
   int feed(byte[] buf, int off, int len) throws IOException {
     if (len > 0) {
@@ -110,9 +110,10 @@ final class ResponseParser {
     if (state == UNTIL_CLOSE) {
       state = DONE;
     } else if (state != DONE) {
-      throw new EOFException(state == STATUS_LINE || state == HEADERS
-          ? "Connection closed before the response was complete"
-          : "Connection closed before the response body was complete");
+      throw new EOFException(
+          state == STATUS_LINE || state == HEADERS
+              ? "Connection closed before the response was complete"
+              : "Connection closed before the response body was complete");
     }
   }
 
@@ -153,10 +154,18 @@ final class ResponseParser {
   }
 
   private void statusLine(int len) throws IOException {
-    if (len < 12 || line[0] != 'H' || line[1] != 'T' || line[2] != 'T' || line[3] != 'P'
-        || line[4] != '/' || line[5] != '1' || line[6] != '.' || line[8] != ' ') {
-      throw new IOException("Malformed status line: "
-          + new String(line, 0, Math.min(len, 80), StandardCharsets.ISO_8859_1));
+    if (len < 12
+        || line[0] != 'H'
+        || line[1] != 'T'
+        || line[2] != 'T'
+        || line[3] != 'P'
+        || line[4] != '/'
+        || line[5] != '1'
+        || line[6] != '.'
+        || line[8] != ' ') {
+      throw new IOException(
+          "Malformed status line: "
+              + new String(line, 0, Math.min(len, 80), StandardCharsets.ISO_8859_1));
     }
     status = digit(line[9]) * 100 + digit(line[10]) * 10 + digit(line[11]);
     if (status < 100) {

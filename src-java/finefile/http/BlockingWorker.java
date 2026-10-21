@@ -13,9 +13,9 @@ import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 
 /**
- * Drives one connection per origin with blocking socket calls on its own
- * thread. Used for https, where an SSLSocket does the TLS, and whenever an
- * event loop would only have one connection to drive.
+ * Drives one connection per origin with blocking socket calls on its own thread. Used for https,
+ * where an SSLSocket does the TLS, and whenever an event loop would only have one connection to
+ * drive.
  */
 final class BlockingWorker implements LoadGenerator.Driver {
   private final Connection[] connections;
@@ -106,8 +106,10 @@ final class BlockingWorker implements LoadGenerator.Driver {
         s.connect(new InetSocketAddress(target.host, target.port), connectTimeoutMillis);
         s.setSoTimeout(readTimeoutMillis);
         if (target.https) {
-          SSLSocket ssl = (SSLSocket) ((SSLSocketFactory) SSLSocketFactory.getDefault())
-              .createSocket(s, target.host, target.port, true);
+          SSLSocket ssl =
+              (SSLSocket)
+                  ((SSLSocketFactory) SSLSocketFactory.getDefault())
+                      .createSocket(s, target.host, target.port, true);
           SSLParameters params = ssl.getSSLParameters();
           params.setEndpointIdentificationAlgorithm("HTTPS");
           params.setApplicationProtocols(new String[] {"http/1.1"});

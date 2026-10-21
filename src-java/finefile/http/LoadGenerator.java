@@ -15,27 +15,25 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Sends GET requests over keep-alive HTTP/1.1 connections, as fast as the
- * server will answer them.
+ * Sends GET requests over keep-alive HTTP/1.1 connections, as fast as the server will answer them.
  *
- * <p>Each of {@code concurrency} connections carries one request at a time:
- * write a prebuilt request, parse just enough of the response to find where
- * it ends, repeat.
+ * <p>Each of {@code concurrency} connections carries one request at a time: write a prebuilt
+ * request, parse just enough of the response to find where it ends, repeat.
  *
- * <p>Plain http connections are spread over a few {@link EventLoop}s,
- * which has minimal CPU overhead. Low concurrency and https use
- * a {@link BlockingWorker} per connection instead: the first because it is
- * cheaper when a loop would only have one connection to drive, the second
- * because TLS over a non-blocking channel would mean driving an SSLEngine by
- * hand.
+ * <p>Plain http connections are spread over a few {@link EventLoop}s, which has minimal CPU
+ * overhead. Low concurrency and https use a {@link BlockingWorker} per connection instead: the
+ * first because it is cheaper when a loop would only have one connection to drive, the second
+ * because TLS over a non-blocking channel would mean driving an SSLEngine by hand.
  *
- * <p>Connections persist across runs, so that only warmup runs pay for
- * connecting. Responses are drained and discarded. Redirects are not
- * followed. A request that fails is counted and its connection replaced.
+ * <p>Connections persist across runs, so that only warmup runs pay for connecting. Responses are
+ * drained and discarded. Redirects are not followed. A request that fails is counted and its
+ * connection replaced.
  */
 public final class LoadGenerator implements AutoCloseable {
-  /** The outcome of one run: how many responses had each status, and how many
-   *  requests failed with each kind of error. */
+  /**
+   * The outcome of one run: how many responses had each status, and how many requests failed with
+   * each kind of error.
+   */
   public static final class Result {
     public final Map<Long, Long> statuses;
     public final Map<String, Long> errors;
@@ -133,18 +131,19 @@ public final class LoadGenerator implements AutoCloseable {
   // a socket parks and is woken through the poller, which roughly doubles the
   // client's cost per request when concurrency is low. The pool keeps its
   // threads between runs, so they are only created during warmup.
-  private final ExecutorService executor = Executors.newCachedThreadPool(
-      Thread.ofPlatform().daemon().name("finefile-http-", 0).factory());
+  private final ExecutorService executor =
+      Executors.newCachedThreadPool(
+          Thread.ofPlatform().daemon().name("finefile-http-", 0).factory());
   private volatile boolean closed;
   // Where the next run starts in targets, so that urls keep cycling evenly
   // across runs whose request count is not a multiple of the url count.
   private long nextTarget;
 
   /**
-   * @throws IllegalArgumentException naming the first url that is not an
-   *     absolute http or https url
+   * @throws IllegalArgumentException naming the first url that is not an absolute http or https url
    */
-  public LoadGenerator(List<String> urls, int concurrency, int connectTimeoutMillis, int readTimeoutMillis) {
+  public LoadGenerator(
+      List<String> urls, int concurrency, int connectTimeoutMillis, int readTimeoutMillis) {
     if (urls.isEmpty()) {
       throw new IllegalArgumentException("No urls");
     }
@@ -195,7 +194,8 @@ public final class LoadGenerator implements AutoCloseable {
     }
     String scheme = uri.getScheme() == null ? null : uri.getScheme().toLowerCase();
     if (!"http".equals(scheme) && !"https".equals(scheme)) {
-      throw new IllegalArgumentException("Invalid url \"" + url + "\": the scheme must be http or https");
+      throw new IllegalArgumentException(
+          "Invalid url \"" + url + "\": the scheme must be http or https");
     }
     String host = uri.getHost();
     if (host == null) {
@@ -209,11 +209,17 @@ public final class LoadGenerator implements AutoCloseable {
       path = path + "?" + uri.getRawQuery();
     }
     String hostHeader = port == defaultPort ? host : host + ":" + port;
-    byte[] request = ("GET " + path + " HTTP/1.1\r\n"
-        + "Host: " + hostHeader + "\r\n"
-        + "User-Agent: finefile\r\n"
-        + "Accept: */*\r\n"
-        + "\r\n").getBytes(StandardCharsets.ISO_8859_1);
+    byte[] request =
+        ("GET "
+                + path
+                + " HTTP/1.1\r\n"
+                + "Host: "
+                + hostHeader
+                + "\r\n"
+                + "User-Agent: finefile\r\n"
+                + "Accept: */*\r\n"
+                + "\r\n")
+            .getBytes(StandardCharsets.ISO_8859_1);
     // URI keeps the brackets around an IPv6 literal, which the Host header
     // needs and a socket address does not.
     String socketHost = host.startsWith("[") ? host.substring(1, host.length() - 1) : host;
@@ -222,11 +228,11 @@ public final class LoadGenerator implements AutoCloseable {
   }
 
   /**
-   * Sends {@code requests} requests and waits for every response, cycling
-   * through the urls. Must not be called concurrently with itself.
+   * Sends {@code requests} requests and waits for every response, cycling through the urls. Must
+   * not be called concurrently with itself.
    *
-   * @throws InterruptedException after closing every connection, so that the
-   *     drivers stop promptly instead of finishing the run
+   * @throws InterruptedException after closing every connection, so that the drivers stop promptly
+   *     instead of finishing the run
    */
   public Result run(long requests) throws InterruptedException {
     if (closed) {
@@ -237,13 +243,15 @@ public final class LoadGenerator implements AutoCloseable {
     List<Future<?>> futures = new ArrayList<>(drivers.length);
     try {
       for (Driver d : drivers) {
-        futures.add(executor.submit(() -> {
-          try {
-            d.run(run);
-          } finally {
-            run.finished.countDown();
-          }
-        }));
+        futures.add(
+            executor.submit(
+                () -> {
+                  try {
+                    d.run(run);
+                  } finally {
+                    run.finished.countDown();
+                  }
+                }));
       }
       for (Future<?> f : futures) {
         f.get();

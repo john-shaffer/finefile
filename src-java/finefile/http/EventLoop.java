@@ -15,12 +15,11 @@ import java.nio.channels.SocketChannel;
 import java.util.Iterator;
 
 /**
- * Drives several plain http connections from one thread with a selector, so
- * that waiting on many responses costs one epoll call instead of a thread
- * switch per response.
+ * Drives several plain http connections from one thread with a selector, so that waiting on many
+ * responses costs one epoll call instead of a thread switch per response.
  *
- * <p>Each slot is one unit of concurrency: it has at most one request in
- * flight, on its connection to that request's origin.
+ * <p>Each slot is one unit of concurrency: it has at most one request in flight, on its connection
+ * to that request's origin.
  */
 final class EventLoop implements LoadGenerator.Driver {
   private final Selector selector;
@@ -171,9 +170,8 @@ final class EventLoop implements LoadGenerator.Driver {
   }
 
   /**
-   * Closes c after its request failed with e, and resends the request on a
-   * fresh connection if that is safe. Returns null if it did, or else the
-   * error to record.
+   * Closes c after its request failed with e, and resends the request on a fresh connection if that
+   * is safe. Returns null if it did, or else the error to record.
    */
   private IOException retry(Connection c, IOException e) {
     c.closeChannel();
